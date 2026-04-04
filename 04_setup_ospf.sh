@@ -2,6 +2,10 @@
 # 04_setup_ospf.sh
 # Script khởi chạy FRRouting daemons trên các node của Mininet
 
+echo "=== Dọn dẹp tiến trình FRR cũ (nếu có) ==="
+sudo killall -9 zebra ospfd 2>/dev/null
+sudo rm -f /tmp/zebra-*.pid /tmp/ospfd-*.pid /tmp/zserv-*.api
+
 echo "=== Khởi động tiến trình Zebra (Routing Manager) và OSPFd trên từng Node ==="
 
 # Chạy Zebra và OSPF trên Core

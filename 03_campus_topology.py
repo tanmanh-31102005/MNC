@@ -10,6 +10,10 @@ from mininet.link import TCLink
 
 class LinuxRouter(Node):
     "A Node with IP forwarding enabled."
+    def __init__(self, name, **params):
+        params.setdefault('privateDirs', ['/var/run/frr'])
+        super(LinuxRouter, self).__init__(name, **params)
+
     def config(self, **params):
         super(LinuxRouter, self).config(**params)
         self.cmd('sysctl net.ipv4.ip_forward=1')
@@ -36,10 +40,10 @@ class CampusTopo(Topo):
         r_out = self.addNode('r_out', cls=LinuxRouter, ip='192.168.100.2/30')
 
         # 2. Tạo các Switch Access (Layer 2)
-        acc1 = self.addSwitch('acc1')
-        acc2 = self.addSwitch('acc2')
-        sw_dmz = self.addSwitch('sw_dmz') # Switch dummy cho mạng DMZ
-        sw_out = self.addSwitch('sw_out') # Switch dummy cho mạng Internet
+        acc1 = self.addSwitch('acc1', dpid='1', failMode='standalone')
+        acc2 = self.addSwitch('acc2', dpid='2', failMode='standalone')
+        sw_dmz = self.addSwitch('sw_dmz', dpid='3', failMode='standalone') # Switch dummy cho mạng DMZ
+        sw_out = self.addSwitch('sw_out', dpid='4', failMode='standalone') # Switch dummy cho mạng Internet
 
         # 3. Tạo các thiết bị End Host
         # Inside Hosts
