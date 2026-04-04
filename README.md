@@ -51,3 +51,4 @@ Hai ảnh `load_chart.png` và `acl_heatmap.png` sẽ xuất hiện để bạn 
 **Trích mục Thực Nghiệm & Đánh Giá:**
 > "Bằng việc ứng dụng FRRouting trên môi trường Mininet OVS, nhóm đã xây dựng thành công bộ định tuyến OSPF cho kiến trúc Core - Distribution, mang lại khả năng chịu lỗi liên tục khi một Dist switch bị dứt mạng. Thời gian hội tụ hệ thống dưới 5 giây.
 > Thông lượng đo bằng iperf3 từ mạng Inside ra Outside được cấu hình PAT (NAT Overload) thông qua biên ISP bảo toàn 95% throughput (1Gbps gốc vs ~950Mbps sau NAT). Đồng thời, thông qua Firewall (IPTables Statefull Extended ACL), hệ thống đã hoàn toàn chống chịu thành công khi mô phỏng kịch bản port-scanning từ Outside, thể hiện rõ ở vùng mật độ cao (màu đỏ thẫm) trên biểu đồ Heat Map (Nhiệt) chặn các port SSH/Telnet."
+"# MNC" 
