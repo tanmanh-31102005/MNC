@@ -1,0 +1,87 @@
+\chapter{Ket luan}
+
+\section{Nhung phan da thuc hien duoc}
+
+\subsection{Xay dung Topology Campus 3 lop + DMZ}
+
+\begin{itemize}
+    \item Thiet ke va trien khai thanh cong mo hinh mang Campus 3 lop (Core -- Distribution -- Access) tren Mininet bang script Python.
+    \item Chia VLAN 10 (Hanh chinh: 172.16.10.x) va VLAN 20 (Ky thuat: 172.16.20.x) voi Inter-VLAN Routing qua Core Router.
+    \item Xay dung vung DMZ cach ly voi hai may chu Web (web1, web2) phuc vu HTTP.
+    \item Cau hinh Outside Network gia lap ISP de kiem tra NAT va bao mat.
+\end{itemize}
+
+\subsection{Bao mat da tang}
+
+\begin{itemize}
+    \item \textbf{NAT/PAT:} Cau hinh iptables cho phep may chu noi bo truy cap Internet qua dia chi ngoai duy nhat (Masquerade/SNAT).
+    \item \textbf{Static NAT:} Anh xa co dinh web1 -- 203.0.113.10 va web2 -- 203.0.113.11 cho phep truy cap HTTP tu ngoai.
+    \item \textbf{ACL:} Chan hoan toan SSH (cong 22) va MySQL (cong 3306) tu mang ngoai vao DMZ, chi cho phep HTTP.
+    \item Overhead bao mat (NAT+ACL) chi 6--10\%, chap nhan duoc trong san xuat.
+\end{itemize}
+
+\subsection{Can bang tai tu dong}
+
+\begin{itemize}
+    \item Bo can bang tai Python giam sat luu luong theo chu ky 2 giay.
+    \item Tu dong chuyen may chu khi load vuot nguong 80\% (sang web2) hoac giam duoi 20\% (tra lai web1).
+    \item Thoi gian phat hien va chuyen duoi 5 giay, mat goi 0\%.
+    \item Ghi log CSV tu dong de phan tich hau ky va ve bieu do bao cao.
+\end{itemize}
+
+\subsection{Dinh tuyen dong OSPF}
+
+\begin{itemize}
+    \item Trien khai FRRouting (Zebra + OSPFd) tren Core, dist1, dist2 va dmz\_r.
+    \item Phan chia ba OSPF Area (Area 0 backbone, Area 1 cho VLAN, Area 2 Stub cho DMZ).
+    \item Hoi tu tu dong trong 12--15 giay khi xay ra su co link down, khong can can thiep thu cong.
+\end{itemize}
+
+\subsection{Bao cao va truc quan hoa}
+
+\begin{itemize}
+    \item 7 bieu do PNG duoc xuat tu dong boi \texttt{plot\_charts.py}: so do logic topology, timeline can bang tai, heatmap ACL, so sanh throughput, so sanh latency, stacked area va bang NAT.
+    \item Bao cao LaTeX hoan chinh, tuyen tap tat ca ket qua ki thuat va bieu do.
+\end{itemize}
+
+\section{Nhung phan chua thuc hien duoc}
+
+\subsection{QoS (Chat luong Dich vu)}
+
+Chua trien khai chinh sach QoS phan bia luu luong Video Conference (do tre thap) voi luu luong Background (do tre cao chap nhan duoc). Trong thuc te, day la yeu to quan trong khi he thong phuc vu nhieu loai ung dung.
+
+\subsection{Xac thuc OSPF}
+
+Chua bat xac thuc MD5 cho goi tin OSPF Hello, dan den nguy co OSPF spoofing neu co thiet bi gia mao ket noi vao mang.
+
+\subsection{Giam sat tap trung}
+
+Chua tich hop cong cu giam sat tap trung nhu Prometheus + Grafana hoac Nagios. Hien tai chi co log file va bieu do tinh, khong co canh bao tu dong theo thoi gian thuc.
+
+\subsection{IPv6}
+
+Toan bo he thong chi su dung IPv4. Trong moi truong doanh nghiep hien dai, can xem xet ho tro IPv6 song song (dual-stack).
+
+\section{Huong mo rong}
+
+\begin{itemize}
+    \item \textbf{QoS:} Trien khai tc (traffic control) tren Linux de dat uu tien cho luu luong VoIP va Video.
+    \item \textbf{Redundancy:} Them duong ket noi du phong giua Core -- Distribution, trien khai Spanning Tree Protocol hoac OSPF Equal-Cost Multi-Path.
+    \item \textbf{IDS/IPS:} Tich hop Snort hoac Suricata de phat hien va ngan chan tan cong trong thoi gian thuc.
+    \item \textbf{VLAN 802.1Q:} Chuyen tu phan chia VLAN theo subnet sang VLAN tag thuc su tren OVS Switch.
+    \item \textbf{Giam sat:} Tich hop Prometheus + Grafana, canh bao qua email/Telegram khi luu luong bat thuong.
+    \item \textbf{IPv6:} Mo rong quy hoach dia chi sang IPv6 dual-stack, trien khai OSPFv3.
+\end{itemize}
+
+\section{Bai hoc kinh nghiem}
+
+\begin{enumerate}
+    \item \textbf{Lap ke hoach IP ro rang truoc:}  Quy hoach subnet, gateway, router-id OSPF truoc khi code giup tranh nhieu loi xung dot dia chi.
+    \item \textbf{Test tung buoc:} Sau moi buoc cau hinh (topology, IP, NAT, ACL, OSPF) nen kiem tra ket noi truoc khi sang buoc tiep theo.
+    \item \textbf{Quan ly tien trinh FRR theo namespace:} Moi daemon FRR can chay trong namespace rieng voi socket rieng de tranh xung dot khi co nhieu Router tren cung mot may vat ly.
+    \item \textbf{iptables la cong cu manh nhung phai dung thu tu:} Cac quy tac PREROUTING/POSTROUTING/FORWARD can duoc them dung thu tu, tra tac dung rat kho debug.
+    \item \textbf{Mo phong khong thay the thiet bi thuc:} Mininet rat huu ich cho phat trien va thu nghiem, nhung can test them tren GNS3 hoac thiet bi Cisco/MikroTik truoc khi dua vao san xuat.
+\end{enumerate}
+
+\vspace{0.5cm}
+Du an da hoan thanh day du muc tieu thiet ke va trien khai he thong mang Campus an toan voi NAT/PAT, ACL, Can bang tai theo nguong va Dinh tuyen dong OSPF tren nen tang Mininet. He thong dat hieu nang vuot yeu cau de ra, voi overhead bao mat duoi 10\% va thoi gian hoi tu OSPF duoi 15 giay. Day la nen tang tot de mo rong thanh he thong san xuat thuc te trong tuong lai.

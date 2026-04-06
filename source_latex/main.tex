@@ -1,0 +1,96 @@
+\documentclass[a4paper]{report}
+\makeatletter
+\renewcommand\normalsize{%
+  \@setfontsize\normalsize{13pt}{19.5pt}% 19.5 = 1.5 * 13 (line spacing)
+}
+\makeatother
+% --- PACKAGES CO BAN ---
+\input{preamble.tex}
+\onehalfspacing
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\usepackage{titlesec}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\bfseries\fontsize{16pt}{19pt}\selectfont}
+  {\MakeUppercase{CHUONG \thechapter.}}
+  {0.5em}
+  {\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{6pt}{8pt}
+\titleformat{\section}
+  {\normalfont\bfseries\fontsize{14pt}{16.8pt}\selectfont}
+  {\thesection.}
+  {0.5em}
+  {}
+\titlespacing*{\section}{0pt}{6pt}{6pt}
+
+\usepackage{enumitem}
+
+\setlist{
+    leftmargin=1.8cm,
+    itemsep=0.25em,
+    topsep=0em,
+    parsep=0pt,
+    partopsep=0pt
+}
+
+\usepackage{caption}
+
+\captionsetup[table]{
+    skip=4pt,
+    aboveskip=0pt,
+    belowskip=0pt
+}
+\titleformat{\subsection}
+  {\normalfont\bfseries\fontsize{14pt}{16.8pt}\selectfont}
+  {\thesubsection.}
+  {0.5em}
+  {}
+
+\titlespacing*{\subsection}{0pt}{6pt}{6pt}
+
+% --- DUONG DAN HINH ANH ---
+% Thu muc media/ (anh thu cong) va ../charts/ (bieu do tu dong sinh)
+\graphicspath{{media/}{../charts/}}
+
+\begin{document}
+
+% --- FRONTMATTER ---
+\input{frontmatter/titlepage.tex}
+\clearpage
+\input{frontmatter/acknowledgment}
+\clearpage
+\input{frontmatter/declaration}
+\clearpage
+\input{frontmatter/abstract}
+\clearpage
+
+% Danh so La Ma cho phan dau
+\pagenumbering{roman}
+
+% --- MUC LUC ---
+\tableofcontents
+\clearpage
+
+\listoffigures
+\clearpage
+
+\listoftables
+\clearpage
+
+% --- NOI DUNG CHINH ---
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{content/C1.tex}   % Tong quan du an
+\input{content/C2.tex}   % Thiet ke Topology
+\input{content/C3.tex}   % Bao mat NAT/ACL/Firewall
+\input{content/C4.tex}   % Can bang tai
+\input{content/C5.tex}   % Dinh tuyen OSPF
+\input{content/C6.tex}   % Kiem thu va Danh gia
+\input{content/C7.tex}   % Ket luan
+\clearpage
+
+\input{backmatter/05_tai_lieu_tham_khao.tex}
+
+\end{document}

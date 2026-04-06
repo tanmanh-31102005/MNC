@@ -1,0 +1,1112 @@
+\chapter{CHI TIẾT CẤU HÌNH HỆ THỐNG}
+
+\section{Cấu hình địa chỉ IP tĩnh}
+
+\subsection{Cấu hình IP bằng PowerShell}
+
+Việc sử dụng PowerShell thay vì GUI mang lại nhiều lợi ích: tự động hóa, dễ dàng tái sử dụng script, và phù hợp với môi trường doanh nghiệp quy mô lớn.
+
+\subsubsection{Cấu hình DC01}
+
+\begin{lstlisting}
+# Xac dinh ten card mang
+Get-NetAdapter
+
+# Dat IP tinh
+New-NetIPAddress -InterfaceAlias "Ethernet0" `
+    -IPAddress 192.168.10.10 `
+    -PrefixLength 24 `
+    -DefaultGateway 192.168.10.1
+
+# Cau hinh DNS (tro ve chinh no)
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" `
+    -ServerAddresses 192.168.10.10
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{-PrefixLength 24}: Tương đương subnet mask 255.255.255.0
+    \item \texttt{-DefaultGateway 192.168.10.1}: Router-VM NIC1
+    \item DNS trỏ về chính nó (127.0.0.1 hoặc 192.168.10.10) vì DC01 sẽ là DNS server
+\end{itemize}
+
+\textbf{Mục đích:} DC01 là máy chủ hạ tầng cốt lõi, cần địa chỉ IP tĩnh ổn định để các máy khác có thể tham chiếu ổn định cho dịch vụ DNS và AD DS.
+
+\subsubsection{Cấu hình FS1}
+
+\begin{lstlisting}
+New-NetIPAddress -InterfaceAlias "Ethernet0" `
+    -IPAddress 192.168.10.20 `
+    -PrefixLength 24 `
+    -DefaultGateway 192.168.10.1
+
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" `
+    -ServerAddresses 192.168.10.10
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item FS1 thuộc subnet HCM (192.168.10.0/24)
+    \item DNS trỏ về DC01 để phân giải domain name và tham gia domain
+    \item Gateway 192.168.10.1 cho phép giao tiếp với site HN
+\end{itemize}
+
+\subsubsection{Cấu hình FS2}
+
+\begin{lstlisting}
+New-NetIPAddress -InterfaceAlias "Ethernet0" `
+    -IPAddress 192.168.20.20 `
+    -PrefixLength 24 `
+    -DefaultGateway 192.168.20.1
+
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" `
+    -ServerAddresses 192.168.10.10
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item FS2 thuộc subnet HN (192.168.20.0/24)
+    \item DNS vẫn trỏ về DC01 (192.168.10.10) mặc dù khác subnet
+    \item Gateway 192.168.20.1 (Router NIC2) cho phép định tuyến về HCM site
+\end{itemize}
+
+\textbf{Mục đích:} FS2 là replica của FS1, cần kết nối với DC01 để xác thực domain và với FS1 để thực hiện DFS replication.
+
+\subsubsection{Cấu hình CLIENT1 và CLIENT2}
+
+Tương tự, CLIENT1 sử dụng IP 192.168.10.30 với gateway 192.168.10.1, CLIENT2 sử dụng 192.168.20.30 với gateway 192.168.20.1. Cả hai đều trỏ DNS về 192.168.10.10.
+
+\subsection{Kiểm tra kết nối}
+
+Sau khi cấu hình IP, kiểm tra kết nối:
+
+\begin{lstlisting}
+# Xem cau hinh IP
+Get-NetIPAddress -AddressFamily IPv4
+Get-DnsClientServerAddress
+
+# Test ket noi trong cung subnet
+ping 192.168.10.10
+
+# Test ket noi cross-subnet (sau khi cau hinh router)
+ping 192.168.20.20
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/ping.png}
+    \caption{Kiểm tra kết nối khác site (sau khi cấu hình router)}
+    \label{fig:ping}
+\end{figure}
+
+\section{Cấu hình ROUTER-VM với RRAS}
+
+\subsection{Kiểm tra Network Adapters}
+
+ROUTER-VM cần có 2 NIC kết nối với 2 subnet khác nhau:
+
+\begin{lstlisting}
+Get-NetAdapter
+
+# Ket qua mong muon:
+# Name         InterfaceDescription        ifIndex Status
+# Ethernet0    Intel(R) PRO/1000 MT...     2       Up
+# Ethernet1    Intel(R) PRO/1000 MT...     3       Up
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/config_router_1.png}
+    \caption{Kiểm tra Network Adapters}
+    \label{fig:config_router_1}
+\end{figure}
+
+\subsection{Cấu hình IP cho từng NIC}
+
+\begin{lstlisting}
+# NIC1 - Ket noi voi HCM Site
+New-NetIPAddress -InterfaceAlias "Ethernet0" `
+    -IPAddress 192.168.10.1 `
+    -PrefixLength 24
+
+# NIC2 - Ket noi voi HN Site
+New-NetIPAddress -InterfaceAlias "Ethernet1" `
+    -IPAddress 192.168.20.1 `
+    -PrefixLength 24
+
+# Xac nhan cau hinh
+Get-NetIPAddress -AddressFamily IPv4
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/config_router_2.png}
+    \caption{Xác nhận cấu hình NIC ROUTER-VM}
+    \label{fig:config_router_2}
+\end{figure}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Router không cần Default Gateway vì nó trực tiếp kết nối với cả hai subnet
+    \item Mỗi NIC có địa chỉ .1 trong subnet tương ứng, theo quy ước gateway
+    \item Không cấu hình DNS trên router vì nó không cần join domain
+\end{itemize}
+
+\subsection{Cài đặt Remote Access Role}
+
+\begin{lstlisting}
+# Cai dat Remote Access va Routing features
+Install-WindowsFeature RemoteAccess -IncludeManagementTools
+Install-WindowsFeature Routing -IncludeManagementTools
+
+# Kiem tra cai dat thanh cong
+Get-WindowsFeature RemoteAccess, Routing
+\end{lstlisting}
+
+\textbf{Mục đích:} 
+\begin{itemize}
+    \item \texttt{RemoteAccess}: Cung cấp dịch vụ định tuyến và VPN
+    \item \texttt{Routing}: Bật chức năng routing giữa các mạng
+    \item \texttt{-IncludeManagementTools}: Cài đặt công cụ quản lý GUI nếu cần
+\end{itemize}
+
+\subsection{Cấu hình RRAS ở chế độ LAN Routing}
+
+\begin{lstlisting}
+# Kich hoat RRAS o che do LAN routing only
+Install-RemoteAccess -VpnType RoutingOnly
+
+# Bat dich vu RemoteAccess
+Set-Service RemoteAccess -StartupType Automatic
+Start-Service RemoteAccess
+
+# Kiem tra trang thai dich vu
+Get-Service RemoteAccess
+\end{lstlisting}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{media/remote_access.png}
+    \caption{Kiểm tra trạng thái dịch vụ (Running)}
+    \label{fig:placeholder}
+\end{figure}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{-VpnType RoutingOnly}: Chỉ bật routing, không bật VPN (DirectAccess, L2TP, etc.)
+    \item \texttt{-StartupType Automatic}: Đảm bảo dịch vụ tự động khởi động cùng server
+    \item Status phải là \texttt{Running} để routing hoạt động
+\end{itemize}
+
+\subsection{Bật IP Forwarding}
+
+IP Forwarding cho phép router chuyển tiếp gói tin giữa các interface:
+
+\begin{lstlisting}
+# Bat IP forwarding cho NIC HCM
+Set-NetIPInterface -InterfaceAlias "Ethernet0" -Forwarding Enabled
+
+# Bat IP forwarding cho NIC HN
+Set-NetIPInterface -InterfaceAlias "Ethernet1" -Forwarding Enabled
+
+# Kiem tra
+Get-NetIPInterface | Select-Object InterfaceAlias, Forwarding
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/kiem_tra_nic.png}
+    \caption{Kiểm tra Forwarding}
+    \label{fig:kiem_tra_nic}
+\end{figure}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Windows Server mặc định tắt IP forwarding để bảo mật
+    \item RRAS thường tự động bật forwarding, nhưng ta bật tường minh để đảm bảo
+    \item Forwarding phải được bật trên CẢ HAI NIC
+\end{itemize}
+
+\section{Triển khai Active Directory Domain Services}
+
+\subsection{Đổi tên máy chủ}
+
+\begin{lstlisting}
+Rename-Computer -NewName "DC01" -Force -Restart
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Tên máy phải rõ ràng, dễ nhận diện vai trò
+    \item \texttt{-Force}: Bỏ qua xác nhận
+    \item \texttt{-Restart}: Tự động khởi động lại để áp dụng
+\end{itemize}
+
+\subsection{Cài đặt AD DS và DNS Role}
+
+\begin{lstlisting}
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+Install-WindowsFeature DNS -IncludeManagementTools
+\end{lstlisting}
+
+\textbf{Mục đích:}
+\begin{itemize}
+    \item \textbf{AD DS}: Cung cấp dịch vụ thư mục, xác thực người dùng, quản lý chính sách
+    \item \textbf{DNS}: Tích hợp với AD DS để phân giải tên domain và Service Location (SRV records)
+\end{itemize}
+
+
+\subsection{Promote lên Domain Controller}
+
+\begin{lstlisting}
+# Dat mat khau cho tai khoan Administrator truoc
+net user Administrator "P@ssw0rd"
+
+# Promote len Domain Controller
+Install-ADDSForest `
+    -DomainName "detai07.com" `
+    -DomainNetbiosName "SonTaiThai" `
+    -SafeModeAdministratorPassword (ConvertTo-SecureString "P@ssw0rd" -AsPlainText -Force) `
+    -InstallDNS:$true `
+    -Force
+\end{lstlisting}
+
+\textbf{Giải thích từng tham số:}
+\begin{itemize}
+    \item \texttt{-DomainName "detai07.com"}: Tên FQDN của domain (Fully Qualified Domain Name)
+    \item \texttt{-DomainNetbiosName "SonTaiThai"}: Tên NetBIOS ngắn gọn, dùng cho tương thích Windows cũ
+    \item \texttt{-SafeModeAdministratorPassword}: Mật khẩu DSRM (Directory Services Restore Mode) dùng khi khôi phục AD
+    \item \texttt{-InstallDNS:\$true}: Tự động cài DNS và tạo zone cho domain
+    \item \texttt{-Force}: Tự động reboot sau khi hoàn tất
+\end{itemize}
+
+\textbf{Mục đích:} Tạo một forest mới với domain gốc \texttt{detai07.com}. Đây là domain đầu tiên trong forest, DC01 sẽ giữ tất cả các FSMO roles.
+
+\subsection{Kiểm tra cấu hình AD DS}
+
+Sau khi reboot, kiểm tra:
+
+\begin{lstlisting}
+# Kiem tra domain
+Get-ADDomain
+
+# Kiem tra DNS zone
+Get-DnsServerZone
+
+# Kiem tra cac dich vu
+Get-Service adws, kdc, netlogon, dns
+
+# Kiem tra DNS record
+Resolve-DnsName detai07.com
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/check_adds.png}
+    \caption{Kiểm tra cấu hình ADDS}
+    \label{fig:check_adds}
+\end{figure}
+
+\begin{figure} [H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/kiem_tra_dns_zone.png}
+    \caption{Kiểm tra DNS record}
+    \label{fig:kiem_tra_dns_zone}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/kiemtra_cac_dichvu.png}
+    \caption{Kiểm tra các dịch vụ}
+    \label{fig:kiemtra_cac_dichvu}
+\end{figure}
+
+\textbf{Kết quả:}
+\begin{itemize}
+    \item Domain Name: detai07.com
+    \item NetBIOS: SonTaiThai
+    \item Tất cả dịch vụ ở trạng thái Running
+\end{itemize}
+
+\section{Cấu hình AD Sites and Services}
+
+\subsection{Tạo Site cho HCM và HN}
+
+AD Sites được sử dụng để tối ưu hóa replication traffic và cung cấp site-aware services (bao gồm DFS referrals).
+
+\begin{lstlisting}
+# Tao site HCM
+New-ADReplicationSite -Name "HCM"
+
+# Tao site HN
+New-ADReplicationSite -Name "HN"
+
+# Kiem tra
+Get-ADReplicationSite
+\end{lstlisting}
+
+\textbf{Mục đích:} Định nghĩa cấu trúc địa lý của mạng, giúp AD và DFS xác định vị trí của client và server.
+
+\subsection{Gán Subnet cho mỗi Site}
+
+\begin{lstlisting}
+# Gan subnet HCM
+New-ADReplicationSubnet -Name "192.168.10.0/24" -Site "HCM"
+
+# Gan subnet HN
+New-ADReplicationSubnet -Name "192.168.20.0/24" -Site "HN"
+
+# Kiem tra
+Get-ADReplicationSubnet
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Subnet 192.168.10.0/24 được gán cho site HCM
+    \item Subnet 192.168.20.0/24 được gán cho site HN
+    \item Client sẽ tự động được xác định thuộc site nào dựa trên địa chỉ IP của nó
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/cau_hinh_ad_subnet.png}
+    \caption{Cấu hình AD Subnet}
+    \label{fig:cau_hinh_ad_subnet}
+\end{figure}
+
+\subsection{Di chuyển DC01 vào site HCM}
+
+Mặc định, DC đầu tiên được đặt trong site "Default-First-Site-Name". Cần di chuyển DC01 vào site HCM:
+
+\begin{lstlisting}
+Move-ADDirectoryServer -Identity "DC01" -Site "HCM"
+
+# Kiem tra
+Get-ADDomainController -Identity "DC01" | Select-Object Name, Site
+\end{lstlisting}
+
+\textbf{Mục đích:} DC01 nằm trong subnet HCM, nên phải thuộc site HCM để đảm bảo tính chính xác của site topology.
+
+\section{Tạo Organizational Units và User Accounts}
+
+\subsection{Tạo cấu trúc OU}
+
+OU (Organizational Unit) giúp tổ chức các đối tượng AD theo cấu trúc logic:
+
+\begin{lstlisting}
+# Tao OU cho cac site
+New-ADOrganizationalUnit -Name "HCM" -Path "DC=detai07,DC=com"
+New-ADOrganizationalUnit -Name "HN" -Path "DC=detai07,DC=com"
+
+# Tao OU cho servers va clients
+New-ADOrganizationalUnit -Name "Servers" -Path "DC=detai07,DC=com"
+New-ADOrganizationalUnit -Name "Clients" -Path "DC=detai07,DC=com"
+
+# Kiem tra
+Get-ADOrganizationalUnit -Filter * | Select-Object Name, DistinguishedName
+\end{lstlisting}
+
+\textbf{Mục đích:}
+\begin{itemize}
+    \item Tổ chức đối tượng theo vị trí địa lý (HCM, HN)
+    \item Phân loại theo loại thiết bị (Servers, Clients)
+    \item Dễ dàng áp dụng Group Policy cho từng OU
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/ou_structure.png}
+    \caption{Cấu trúc OU trong Active Directory}
+    \label{fig:ou_structure}
+\end{figure}
+
+\subsection{Tạo User Accounts}
+
+\begin{lstlisting}
+# User 1 - Nguyen Hoang Son
+$user1 = [ordered]@{
+    Name = 'Nguyen Hoang Son'
+    SamAccountName = 'sonnh'
+    UserPrincipalName = 'sonnh@detai07.com'
+    AccountPassword = (ConvertTo-SecureString 'P@ssw0rd' -AsPlainText -Force)
+    Enabled = $true
+    Path = 'OU=Clients,DC=detai07,DC=com'
+    DisplayName = 'Nguyen Hoang Son'
+    GivenName = 'Hoang Son'
+    Surname = 'Nguyen'
+}
+New-ADUser @user1
+
+# User 2 - Phan Duc Tai
+$user2 = [ordered]@{
+    Name = 'Phan Duc Tai'
+    SamAccountName = 'taipd'
+    UserPrincipalName = 'taipd@detai07.com'
+    AccountPassword = (ConvertTo-SecureString 'P@ssw0rd' -AsPlainText -Force)
+    Enabled = $true
+    Path = 'OU=Clients,DC=detai07,DC=com'
+    DisplayName = 'Phan Duc Tai'
+    GivenName = 'Duc Tai'
+    Surname = 'Phan'
+}
+New-ADUser @user2
+
+# Tuong tu cho cac user khac (thaitq, thanhlv)...
+\end{lstlisting}
+
+\textbf{Giải thích tham số:}
+\begin{itemize}
+    \item \texttt{SamAccountName}: Tên đăng nhập (pre-Windows 2000 format)
+    \item \texttt{UserPrincipalName}: Email-style login (format: user@domain.com)
+    \item \texttt{Path}: OU chứa user
+    \item \texttt{Enabled}: Kích hoạt tài khoản ngay
+\end{itemize}
+
+\subsection{Tạo Security Groups}
+
+\begin{lstlisting}
+# Tao nhom Students
+New-ADGroup -Name "Students" `
+    -GroupScope Global `
+    -GroupCategory Security `
+    -Path "OU=HCM,DC=detai07,DC=com"
+
+# Tao nhom Teachers
+New-ADGroup -Name "Teachers" `
+    -GroupScope Global `
+    -GroupCategory Security `
+    -Path "OU=HN,DC=detai07,DC=com"
+
+# Them thanh vien vao nhom
+Add-ADGroupMember -Identity "Students" -Members "sonnh", "taipd", "thaitq"
+Add-ADGroupMember -Identity "Teachers" -Members "thanhlv"
+
+# Kiem tra
+Get-ADGroupMember Students
+Get-ADGroupMember Teachers
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/ad_groups.png}
+    \caption{Groups và Members}
+    \label{fig:ad_groups}
+\end{figure}
+
+\textbf{Mục đích:}
+\begin{itemize}
+    \item Groups dùng để gán quyền hàng loạt, thay vì gán cho từng user
+    \item \texttt{GroupScope Global}: Có thể sử dụng trong toàn forest
+    \item \texttt{GroupCategory Security}: Dùng cho phân quyền (khác với Distribution group dùng cho email)
+\end{itemize}
+
+\section{Join máy chủ và client vào Domain}
+
+\subsection{Join FS1 và FS2 bằng PowerShell}
+
+\begin{lstlisting}
+# Tren FS1
+Add-Computer -DomainName "detai07.com" `
+    -Credential (Get-Credential) `
+    -Restart
+
+# Khi duoc hoi, nhap:
+# Username: detai07.com\Administrator (Hoac SonTaiThai\administrator)
+# Password: P@ssw0rd
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/join_domain_fs.png}
+    \caption{FS1 join domain thành công}
+    \label{fig:join_domain_fs}
+\end{figure}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{-Credential (Get-Credential)}: Yêu cầu nhập tài khoản domain admin
+    \item \texttt{-Restart}: Tự động reboot sau khi join thành công
+    \item Sau reboot, phải login bằng \texttt{SonTaiThai\textbackslash Administrator}
+\end{itemize}
+
+Thực hiện tương tự trên FS2.
+
+
+\subsection{Join CLIENT1 và CLIENT2 bằng GUI}
+
+Trên Windows 10/11 Client:
+
+\begin{enumerate}
+    \item Nhấn \texttt{Win + R}, gõ \texttt{sysdm.cpl}, Enter
+    \item Tab \textbf{Computer Name} → Click \textbf{Change}
+    \item Chọn \textbf{Domain}, nhập: \texttt{detai07.com}
+    \item Click OK, nhập credentials:
+    \begin{itemize}
+        \item Username: \texttt{detai07\textbackslash Administrator}
+        \item Password: \texttt{P@ssw0rd}
+    \end{itemize}
+    \item Restart máy
+    \item Login bằng domain user (ví dụ: \texttt{SonTaiThai\textbackslash sonnh})
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{media/join_domain_client1.png}
+        \caption{Mở System Properties}
+    \end{minipage}
+    \hfill
+    \begin{minipage}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{media/join_domain_client2.png}
+        \caption{Chuyển WORKGROUP thành domain SonTaiThai}
+    \end{minipage}
+\end{figure}
+
+\subsection{Di chuyển computer objects vào đúng OU}
+
+Sau khi join domain, các máy tự động được đặt trong container "Computers". Cần di chuyển vào đúng OU:
+
+\begin{lstlisting}
+# Di chuyen FS1, FS2 vao OU Servers
+Move-ADObject -Identity "CN=FS1,CN=Computers,DC=detai07,DC=com" `
+    -TargetPath "OU=Servers,DC=detai07,DC=com"
+
+Move-ADObject -Identity "CN=FS2,CN=Computers,DC=detai07,DC=com" `
+    -TargetPath "OU=Servers,DC=detai07,DC=com"
+
+# Di chuyen CLIENT1, CLIENT2 vao OU Clients
+Move-ADObject -Identity "CN=CLIENT1,CN=Computers,DC=detai07,DC=com" `
+    -TargetPath "OU=Clients,DC=detai07,DC=com"
+
+Move-ADObject -Identity "CN=CLIENT2,CN=Computers,DC=detai07,DC=com" `
+    -TargetPath "OU=Clients,DC=detai07,DC=com"
+\end{lstlisting}
+
+\section{Cấu hình DFS Namespace}
+
+\subsection{Cài đặt DFS Namespace Role trên DC01}
+
+\begin{lstlisting}
+Install-WindowsFeature FS-DFS-Namespace -IncludeManagementTools
+
+# Kiem tra
+Get-WindowsFeature FS-DFS-Namespace
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/kiem_tra_dns_role.png}
+    \caption{Cài đặt DFS Namespace thành công}
+    \label{fig:kiem_tra_dns_role}
+\end{figure}
+
+\textbf{Mục đích:} DFS Namespace role cho phép DC01 host metadata của namespace, cung cấp referral cho clients.
+
+\subsection{Chuẩn bị Folder Target trên FS1}
+
+Trước khi tạo namespace, cần có ít nhất một folder target:
+
+\begin{lstlisting}
+# Tao thu muc vat ly
+New-Item -ItemType Directory -Path "E:\DFS_Public"
+
+# Chia se thu muc qua SMB
+New-SmbShare -Name "DFS_Public" `
+    -Path "E:\DFS_Public" `
+    -FullAccess "Everyone"
+
+# Kiem tra
+Get-SmbShare
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{E:\textbackslash DFS\_Public}: Đường dẫn vật lý trên ổ E của FS1
+    \item Share name: \texttt{DFS\_Public}
+    \item \texttt{-FullAccess "Everyone"}: Cấp quyền tạm thời, sẽ tinh chỉnh sau khi test xong
+    \item Path \\FS1\textbackslash DFS\_Public sẽ là target đầu tiên của namespace
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/fs1_share.png}
+    \caption{Tạo shared folder trên FS1}
+    \label{fig:fs1_share}
+\end{figure}
+
+\subsection{Tạo Domain-based DFS Namespace}
+
+\begin{lstlisting}
+New-DfsnRoot `
+    -TargetPath "\\FS1\DFS_Public" `
+    -Path "\\SonTaiThai\Public" `
+    -Type DomainV2 `
+    -Description "Public Namespace for Multi-Site DFS"
+\end{lstlisting}
+
+\textbf{Giải thích tham số:}
+\begin{itemize}
+    \item \texttt{-TargetPath}: Folder target vật lý đầu tiên (trên FS1)
+    \item \texttt{-Path}: Đường dẫn namespace mà user sẽ truy cập (\textbackslash\textbackslash SonTaiThai\textbackslash Public)
+    \item \texttt{-Type DomainV2}: Domain-based namespace (Windows Server 2008 mode trở lên)
+    \begin{itemize}
+        \item Lợi ích: Hỗ trợ access-based enumeration, scalability cao
+        \item Metadata được lưu trong AD, tự động replicate đến tất cả DC
+        \item Hỗ trợ nhiều namespace servers cho high availability
+    \end{itemize}
+    \item \texttt{-Description}: Mô tả namespace cho mục đích quản lý
+\end{itemize}
+
+\textbf{Mục đích:} Tạo điểm truy cập trung tâm (\textbackslash\textbackslash detai07.com\textbackslash Public) để người dùng không cần biết file thực sự nằm trên server nào.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/create_namespace.png}
+    \caption{Tạo DFS Namespace thành công}
+    \label{fig:create_namespace}
+\end{figure}
+
+\subsection{Kiểm tra Namespace}
+
+\begin{lstlisting}
+# Xem thong tin namespace
+Get-DfsnRoot
+
+# Xem root targets
+Get-DfsnRootTarget -Path "\\detai07.com\Public"
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/get_dfsnroot.png}
+    \caption{Kiểm tra Namespace}
+    \label{fig:get_dfsnroot}
+\end{figure}
+
+\textbf{Kết quả:}
+\begin{itemize}
+    \item Path: \textbackslash\textbackslash detai07.com\textbackslash Public
+    \item Type: DomainV2
+    \item State: Online
+    \item Root Target: \textbackslash\textbackslash FS1\textbackslash DFS\_Public
+\end{itemize}
+
+\subsection{Chuẩn bị Root Target thứ hai trên FS2}
+
+Để namespace có khả năng failover, cần thêm root target thứ hai:
+
+\begin{lstlisting}
+# Tren FS2: Cai dat DFS Namespace role
+Install-WindowsFeature FS-DFS-Namespace
+
+# Tao thu muc root rieng (KHONG dung chung voi replication folder)
+New-Item -ItemType Directory -Path "E:\DFS_Roots\Public" -Force
+
+# Chia se thu muc
+New-SmbShare -Name "DFS_Root_Public" `
+    -Path "E:\DFS_Roots\Public" `
+    -FullAccess "Everyone"
+\end{lstlisting}
+
+\textbf{Lưu ý quan trọng:}
+\begin{itemize}
+    \item \textbf{KHÔNG} sử dụng cùng thư mục cho namespace root và replication folder
+    \item Root folder chứa metadata của namespace
+    \item Replication folder chứa dữ liệu thực tế của user
+    \item Nếu trộn lẫn sẽ gây xung đột và lỗi replication
+\end{itemize}
+
+\subsection{Thêm FS2 làm Root Target}
+
+\begin{lstlisting}
+# Chay tren DC01 hoac bat ky may domain admin nao
+New-DfsnRootTarget `
+    -Path "\\detai07.com\Public" `
+    -TargetPath "\\FS2\DFS_Root_Public"
+
+# Kiem tra
+Get-DfsnRootTarget -Path "\\detai07.com\Public"
+\end{lstlisting}
+
+\textbf{Kết quả:} Namespace giờ có 2 root targets:
+\begin{itemize}
+    \item \textbackslash\textbackslash FS1\textbackslash DFS\_Public
+    \item \textbackslash\textbackslash FS2\textbackslash DFS\_Root\_Public
+\end{itemize}
+
+\textbf{Mục đích:} Nếu FS1 offline, namespace vẫn hoạt động thông qua FS2, đảm bảo high availability.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/dual_root_target.png}
+    \caption{Namespace với hai root targets}
+    \label{fig:dual_root_target}
+\end{figure}
+
+\subsection{Tạo DFS Folder và gán Folder Targets}
+
+DFS Folder là các "thư mục ảo" bên trong namespace, trỏ đến thư mục thật trên file servers:
+
+\begin{lstlisting}
+# Tao folder "Data" ben trong namespace
+New-DfsnFolder `
+    -Path "\\detai07.com\Public\Data" `
+    -TargetPath "\\FS1\DFS_Public"
+
+# Them target thu hai tu FS2
+New-DfsnFolderTarget `
+    -Path "\\detai07.com\Public\Data" `
+    -TargetPath "\\FS2\DFS_Public"
+
+# Kiem tra
+Get-DfsnFolder -Path "\\detai07.com\Public\Data"
+Get-DfsnFolderTarget -Path "\\detai07.com\Public\Data"
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{\textbackslash\textbackslash detai07.com\textbackslash Public\textbackslash Data}: DFS link (thư mục ảo)
+    \item Có 2 targets:
+    \begin{itemize}
+        \item \textbackslash\textbackslash FS1\textbackslash DFS\_Public (HCM site)
+        \item \textbackslash\textbackslash FS2\textbackslash DFS\_Public (HN site)
+    \end{itemize}
+    \item Client ở HCM sẽ được chuyển hướng đến FS1
+    \item Client ở HN sẽ được chuyển hướng đến FS2
+    \item Nếu một server chết, client tự động chuyển sang server còn lại
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/dns_folder_target.png}
+    \caption{DFS Folder với hai targets}
+    \label{fig:placeholder}
+\end{figure}
+
+\subsection{Test truy cập Namespace từ Client}
+
+\begin{lstlisting}
+# Mo File Explorer, truy cap:
+\\detai07.com\Public\Data
+
+# Hoac dung lenh
+Test-Path "\\detai07.com\Public\Data"
+Get-ChildItem "\\detai07.com\Public\Data"
+\end{lstlisting}
+
+\textbf{Kết quả mong đợi:} Thấy thư mục và có thể truy cập file bên trong.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/access_namespace.png}
+    \caption{Truy cập namespace từ client}
+    \label{fig:access_namespace}
+\end{figure}
+
+\section{Cấu hình DFS Replication}
+
+\subsection{Cài đặt DFS Replication trên FS1 và FS2}
+
+\begin{lstlisting}
+# Tren ca FS1 va FS2
+Install-WindowsFeature FS-DFS-Replication -IncludeManagementTools
+
+# Kiem tra
+Get-WindowsFeature FS-DFS-Replication
+\end{lstlisting}
+
+\textbf{Mục đích:} DFS Replication (DFSR) đồng bộ dữ liệu giữa FS1 và FS2, đảm bảo cả hai server có cùng nội dung.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/install_dfrs.png}
+    \caption{Cài đặt DFS Replication}
+    \label{fig:install_dfrs}
+\end{figure}
+
+\subsection{Tạo Replication Group}
+
+\begin{lstlisting}
+# Chay tren DC01 hoac FS1
+New-DfsReplicationGroup -GroupName "RG_Public"
+
+# Kiem tra
+Get-DfsReplicationGroup
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Replication Group: Container logic chứa các member servers và replicated folders
+    \item Tên group: RG\_Public (Replication Group for Public data)
+\end{itemize}
+
+\subsection{Thêm FS1 và FS2 vào Replication Group}
+
+\begin{lstlisting}
+Add-DfsrMember -GroupName "RG_Public" -ComputerName "FS1"
+Add-DfsrMember -GroupName "RG_Public" -ComputerName "FS2"
+
+# Kiem tra
+Get-DfsrMember -GroupName "RG_Public"
+\end{lstlisting}
+
+\textbf{Mục đích:} Xác định các server tham gia vào quá trình replication.
+
+\subsection{Tạo Replicated Folder}
+
+\begin{lstlisting}
+New-DfsReplicatedFolder -GroupName "RG_Public" -FolderName "DFS_Public"
+
+# Kiem tra
+Get-DfsReplicatedFolder -GroupName "RG_Public"
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Replicated Folder: Định nghĩa thư mục logic sẽ được replicate
+    \item Tên folder: DFS\_Public
+    \item Tên này phải khớp với tên trong membership configuration
+\end{itemize}
+
+\subsection{Gán đường dẫn vật lý cho mỗi member}
+
+\begin{lstlisting}
+# Tao thu muc vat ly tren FS1 (neu chua co)
+Invoke-Command -ComputerName FS1 -ScriptBlock {
+    New-Item -ItemType Directory -Path "E:\DFS_Public" -Force
+}
+
+# Tao thu muc vat ly tren FS2
+Invoke-Command -ComputerName FS2 -ScriptBlock {
+    New-Item -ItemType Directory -Path "E:\DFS_Public" -Force
+    New-SmbShare -Name "DFS_Public" -Path "E:\DFS_Public" -FullAccess "Everyone"
+}
+
+# Gan duong dan cho FS1 (primary member)
+Set-DfsrMembership -GroupName "RG_Public" `
+    -FolderName "DFS_Public" `
+    -ContentPath "E:\DFS_Public" `
+    -ComputerName "FS1" `
+    -PrimaryMember $true
+
+# Gan duong dan cho FS2 (secondary member)
+Set-DfsrMembership -GroupName "RG_Public" `
+    -FolderName "DFS_Public" `
+    -ContentPath "E:\DFS_Public" `
+    -ComputerName "FS2"
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item \texttt{-ContentPath}: Đường dẫn vật lý trên mỗi server
+    \item \texttt{-PrimaryMember \$true}: FS1 là primary member
+    \begin{itemize}
+        \item Primary member: Server có dữ liệu "chuẩn" ban đầu
+        \item Lần đầu sync, FS2 sẽ copy toàn bộ từ FS1
+        \item Sau đó, replication là multi-master (hai chiều bình đẳng)
+    \end{itemize}
+    \item FS2 không set primary → tự động là secondary, sẽ nhận dữ liệu từ FS1
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{media/dfrs_membership.png}
+    \end{minipage}
+    \hfill
+    \begin{minipage}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{media/dfrs_membership1.png}
+    \end{minipage}
+    \caption{Cấu hình membership}
+\end{figure}
+
+
+\subsection{Tạo Replication Connection}
+
+Mặc định, DFSR tự động tạo full mesh topology. Tuy nhiên, có thể tạo connection thủ công:
+
+\begin{lstlisting}
+# Tao connection FS1 -> FS2
+Add-DfsrConnection -GroupName "RG_Public" `
+    -SourceComputerName "FS1" `
+    -DestinationComputerName "FS2"
+
+# Tao connection FS2 -> FS1 (bidirectional)
+Add-DfsrConnection -GroupName "RG_Public" `
+    -SourceComputerName "FS2" `
+    -DestinationComputerName "FS1"
+
+# Kiem tra
+Get-DfsrConnection -GroupName "RG_Public"
+\end{lstlisting}
+
+\textbf{Giải thích:}
+\begin{itemize}
+    \item Replication connection: Định nghĩa hướng sync dữ liệu
+    \item Bidirectional connection: Cho phép replication hai chiều (multi-master)
+    \item Mỗi thay đổi trên FS1 sẽ sync sang FS2, và ngược lại
+\end{itemize}
+
+\subsection{Kiểm tra trạng thái Replication}
+
+\begin{lstlisting}
+# Kiem tra backlog (so file cho sync)
+Get-DfsrBacklog -GroupName "RG_Public" `
+    -FolderName "DFS_Public" `
+    -SourceComputerName "FS1" `
+    -DestinationComputerName "FS2"
+
+# Kiem tra nguoc lai
+Get-DfsrBacklog -GroupName "RG_Public" `
+    -FolderName "DFS_Public" `
+    -SourceComputerName "FS2" `
+    -DestinationComputerName "FS1"
+
+# Xem trang thai replication
+Get-DfsrState -ComputerName "FS1"
+Get-DfsrState -ComputerName "FS2"
+\end{lstlisting}
+
+\textbf{Kết quả mong đợi:}
+\begin{itemize}
+    \item Backlog count = 0: Không có file chờ sync
+    \item State = Normal: Replication hoạt động bình thường
+    \item Nếu có backlog: Chờ vài phút cho DFSR xử lý
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/dfrs_backlog.png}
+    \caption{Kiểm tra DFSR backlog}
+    \label{fig:dfrs_backlog}
+\end{figure}
+\subsection{Test Replication hoạt động}
+
+\textbf{Test 1: Tạo file từ FS1}
+
+\begin{lstlisting}
+# Tren FS1, tao file test
+New-Item -Path "E:\DFS_Public\test_from_fs1.txt" -ItemType File
+Set-Content -Path "E:\DFS_Public\test_from_fs1.txt" -Value "Created on FS1"
+
+# Cho 30-60 giay de DFSR replicate
+
+# Tren FS2, kiem tra file da xuat hien chua
+Get-ChildItem -Path "E:\DFS_Public\" | Where-Object Name -eq "test_from_fs1.txt"
+Get-Content "E:\DFS_Public\test_from_fs1.txt"
+\end{lstlisting}
+
+\textbf{Kết quả} File xuất hiện trên FS2 với nội dung giống hệt FS1.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/test_from_cl1.png}
+    \caption{Kiểm tra replication trên Client 1}
+    \label{fig:test_from_cl1}
+\end{figure}
+\textbf{Test 2: Tạo file từ FS2}
+
+\begin{lstlisting}
+# Tren FS2
+New-Item -Path "E:\DFS_Public\test_from_fs2.txt" -ItemType File
+Set-Content -Path "E:\DFS_Public\test_from_fs2.txt" -Value "Created on FS2"
+
+# Tren FS1, kiem tra
+Get-ChildItem -Path "E:\DFS_Public\" | Where-Object Name -eq "test_from_fs2.txt"
+Get-Content "E:\DFS_Public\test_from_fs2.txt"
+\end{lstlisting}
+
+\textbf{Kết quả:} File xuất hiện trên FS1, chứng minh replication hai chiều hoạt động.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/test_from_cl2.png}
+    \caption{Kiểm tra replication trên Client 2}
+    \label{fig:test_from_cl2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/test_replication.png}
+    \caption{Test replication thành công}
+    \label{fig:test_replication}
+\end{figure}
+
+\section{Test Site-Aware Access}
+
+\subsection{Xác nhận client đang kết nối đến server nào}
+
+\begin{lstlisting}
+# Tren FS1
+openfiles /query /s localhost
+
+# Tren FS2
+openfiles /query /s localhost
+\end{lstlisting}
+
+\textbf{Test scenario:}
+\begin{enumerate}
+    \item CLIENT1 (HCM) mở file trong \textbackslash\textbackslash detai07.com\textbackslash Public\textbackslash Data
+    \item Chạy \texttt{openfiles} trên FS1 → thấy CLIENT1 đang kết nối
+    \item Chạy \texttt{openfiles} trên FS2 → không thấy CLIENT1
+    \item Ngược lại với CLIENT2 (HN)
+\end{enumerate}
+
+\textbf{Kết luận:} Site-aware access hoạt động đúng, client tự động kết nối đến server gần nhất.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{media/site_aware_connections.png}
+    \caption{Clients kết nối đến server trong cùng site}
+    \label{fig:site_aware_connections}
+\end{figure}
+\section{Test Failover}
+
+\subsection{Test Namespace Failover}
+
+\textbf{Scenario 1: Shutdown FS1}
+
+\begin{lstlisting}
+# Tren FS1
+Stop-Computer -Force
+
+# Tren CLIENT1 (HCM), thu truy cap namespace
+Test-Path "\\detai07.com\Public\Data"
+Get-ChildItem "\\detai07.com\Public\Data"
+\end{lstlisting}
+
+\textbf{Kết quả mong đợi:}
+\begin{itemize}
+    \item Sau 5-10 giây, CLIENT1 tự động failover sang FS2
+    \item Có thể truy cập và đọc file bình thường
+    \item Namespace vẫn hoạt động vì còn root target trên FS2
+\end{itemize}
+
+\textbf{Scenario 2: Khởi động lại FS1}
+
+\begin{lstlisting}
+# Sau khi FS1 online tro lai
+# CLIENT1 se tu dong quay ve FS1 (vi FS1 co priority cao hon)
+\end{lstlisting}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{media/namespace_failover.png}
+    \caption{Kiểm tra Failovert thành công}
+    \label{fig:placeholder}
+\end{figure}
+
+\subsection{Test Replication sau Failover}
+
+\begin{lstlisting}
+# Trong luc FS1 tat, tao file moi tren CLIENT2 (dang ket noi FS2)
+# File: failover_test.txt
+
+# Sau khi FS1 bat lai, kiem tra file da replicate chua
+# Tren FS1:
+Get-ChildItem "E:\DFS_Public\" | Where-Object Name -eq "failover_test.txt"
+\end{lstlisting}
+
+\textbf{Kết quả:} File được tạo trong thời gian FS1 offline vẫn replicate về FS1 sau khi FS1 online trở lại.
+

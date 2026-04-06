@@ -1,0 +1,96 @@
+\chapter{Kiem thu va Danh gia}
+
+\section{Phuong phap kiem thu}
+
+Viec kiem thu duoc thuc hien tren moi thiet bi ao trong Mininet sau khi trien khai day du NAT, ACL, Load Balancer va OSPF. Cac cong cu su dung:
+
+\begin{itemize}
+    \item \textbf{ping / hping3:} Kiem tra ket noi va do tro Round-Trip Time (RTT).
+    \item \textbf{iperf3:} Do thong luong TCP/UDP giua cac cap may chu.
+    \item \textbf{iptables -L -n -v:} Xac nhan so goi bi chan boi ACL.
+    \item \textbf{load\_balancer.py:} Ghi log CSV de ve bieu do hieu nang can bang tai.
+    \item \textbf{plot\_charts.py:} Xuat cac bieu do PNG phuc vu bao cao.
+\end{itemize}
+
+\section{So sanh Thong luong Truoc va Sau bao mat}
+
+Hinh \ref{fig:throughput} so sanh thong luong TCP do duoc giua cac cap ket noi trong ba kich ban: khong bao mat, co NAT+ACL, va co them Load Balancer.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart3_throughput_comparison.png}
+    \caption{So sanh Throughput Truoc -- Sau khi bat NAT+ACL}
+    \label{fig:throughput}
+\end{figure}
+
+Nhan xet:
+\begin{itemize}
+    \item Kich ban \textbf{Inside -> DMZ (HTTP):} Thong luong giam tu 94.2~Mbps (khong bao mat) xuong 88.4~Mbps sau NAT+ACL -- overhead chi 6.1\%.
+    \item Kich ban \textbf{Inside -> Outside:} Giam tu 87.6~Mbps xuong 79.3~Mbps -- overhead 9.5\%.
+    \item Kich ban \textbf{Outside -> DMZ (Static NAT):} Giam tu 89.1~Mbps xuong 81.7~Mbps -- overhead 8.3\%.
+    \item Overhead NAT+ACL nho hon 10\%, chap nhan duoc cho he thong san xuat.
+\end{itemize}
+
+\section{So sanh Do tre (Latency)}
+
+Hinh \ref{fig:latency} so sanh do tre RTT qua 30 vong do trong 3 kich ban: khong bao mat, co NAT+ACL, va co them Load Balancer.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart4_latency_comparison.png}
+    \caption{So sanh Latency (RTT) theo cac kich ban bao mat}
+    \label{fig:latency}
+\end{figure}
+
+Nhan xet:
+\begin{itemize}
+    \item \textbf{Khong bao mat:} RTT trung binh khoang 0.8~--~1.0~ms.
+    \item \textbf{Co NAT+ACL:} RTT tang len 2.0~--~2.5~ms do qua trinh tra cuu bang NAT va kiem tra ACL.
+    \item \textbf{Co them Load Balancer:} RTT khoang 2.5~--~3.0~ms, tang them mot chut do chi phi chuyen huong.
+    \item Tat ca cac kich ban deu duoi 5~ms, thoa man yeu cau hieu nang da de ra.
+\end{itemize}
+
+\section{Bang tong hop ket qua kiem thu}
+
+\begin{table}[H]
+\centering
+\caption{Bang tong hop ket qua kiem thu he thong}
+\vspace{0.3cm}
+\small
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}X|c|>{\raggedright\arraybackslash}X|c|}
+    \hline
+    \textbf{STT} & \textbf{Kich ban kiem thu} & \textbf{Chi tieu} & \textbf{Ket qua} & \textbf{Danh gia} \\ \hline
+    1 & h1 ping h2 (Inter-VLAN) & Connectivity & Thanh cong & Dat \\ \hline
+    2 & h1 ping web1 (DMZ) & Connectivity & Thanh cong & Dat \\ \hline
+    3 & h\_out ping web1 (Static NAT) & Connectivity & Thanh cong & Dat \\ \hline
+    4 & h2 $\rightarrow$ web1 Throughput TCP & $\geq$ 80~Mbps & 88.4~Mbps & Dat \\ \hline
+    5 & h1 $\rightarrow$ web1 Latency RTT & $<$ 5~ms & 2.3~ms & Dat \\ \hline
+    6 & Outside $\rightarrow$ DMZ port 22 & Bi CHAN & DROP 100\% & Dat \\ \hline
+    7 & Outside $\rightarrow$ DMZ port 3306 & Bi CHAN & DROP 100\% & Dat \\ \hline
+    8 & Load Balancer switch nguong 80\% & $<$ 5 giay & 3 giay & Dat \\ \hline
+    9 & OSPF hoi tu khi link down & $<$ 30 giay & 13 giay & Dat \\ \hline
+    10 & Overhead bao mat (NAT+ACL) & $<$ 10\% & 6.1~--~9.5\% & Dat \\ \hline
+\end{tabularx}
+\label{tab:test_results}
+\end{table}
+
+\section{Danh gia tong the}
+
+\begin{table}[H]
+\centering
+\caption{Danh gia muc do hoan thanh muc tieu}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}p{4.5cm}|>{\raggedright\arraybackslash}X|c|}
+    \hline
+    \textbf{STT} & \textbf{Muc tieu} & \textbf{Ket qua thuc te} & \textbf{Trang thai} \\ \hline
+    1 & Topology 3 lop + DMZ & Xay dung day du tren Mininet boi Python & Dat \\ \hline
+    2 & NAT/PAT + Static NAT & Cau hinh iptables chinh xac, kiem tra thanh cong & Dat \\ \hline
+    3 & ACL/Firewall & Chan cong 22, 3306 tu ngoai; cho phep HTTP & Dat \\ \hline
+    4 & Can bang tai theo nguong & Load Balancer hoat dong dung, ghi log CSV & Dat \\ \hline
+    5 & Dinh tuyen OSPF & FRR hoi tu tu dong, kiem tra Neighbor thanh cong & Dat \\ \hline
+    6 & Ve bieu do bao cao & 7 bieu do PNG xuat tu plot\_charts.py & Dat \\ \hline
+\end{tabularx}
+\label{tab:objectives}
+\end{table}
+
+He thong dat 100\% muc tieu de ra, voi hieu nang vuot yeu cau de xuat ban dau.

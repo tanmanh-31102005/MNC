@@ -1,0 +1,88 @@
+\usepackage[utf8]{inputenc}
+\usepackage[utf8]{vietnam}\usepackage[utf8]{vietnam}
+\usepackage{times}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tocloft}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{indentfirst}
+\usepackage{indentfirst}
+\usepackage{newunicodechar}
+\newunicodechar{│}{|}
+\usepackage{setspace} % Chỉ cần gọi một lần
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{xspace}
+\usepackage{xcolor}
+\usepackage{soul}
+\usepackage{courier}
+\usepackage{titlesec}
+\usepackage{etoolbox}
+\usepackage{adjustbox}
+\usepackage{fancyvrb}
+\hypersetup{hidelinks}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{longtable}
+\usepackage{ragged2e}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{subcaption}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{tcolorbox}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyhead[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+% --- CUSTOM NUMBERING ---
+% Section không phụ thuộc chapter → 1, 2, 3...
+\renewcommand{\thesection}{\arabic{section}}
+
+% Subsection = section.subsection → 1.1, 1.2...
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+
+% Subsubsection = section.subsection.subsubsection → 1.2.1
+\renewcommand{\thesubsubsection}{\thesection.\arabic{subsection}.\arabic{subsubsection}}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{codeblock}{Verbatim}{
+    breaklines=true,
+    breaksymbolleft={}
+}
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+}
+% ====== FIX FORMAT CHAPTER / SECTION / SUBSECTION TRONG MỤC LỤC ======
+
+% --- CHAPTER ---
+\renewcommand{\cftchappresnum}{Chương~}
+\renewcommand{\cftchapaftersnum}{.\hspace{0.8em}}   % dấu chấm + khoảng cách rõ ràng
+\settowidth{\cftchapnumwidth}{Chương 10.\hspace{0.8em}}
+
+% --- SECTION ---
+\renewcommand{\cftsecaftersnum}{.\hspace{0.4em}}     % 1. Giới thiệu → sát hơn
+\settowidth{\cftsecnumwidth}{1.9.\hspace{0.4em}}     % width ngắn lại → không bị đẩy chữ ra xa
+
+% --- SUBSECTION ---
+\renewcommand{\cftsubsecaftersnum}{.\hspace{0.4em}}
+\settowidth{\cftsubsecnumwidth}{1.9.9.\hspace{0.4em}}   % tối ưu nhất cho luận văn
+
+% --- FIGURE ---
+\renewcommand{\cftfigpresnum}{Hình~}
+\renewcommand{\cftfigaftersnum}{.\hspace{0.8em}}
+\settowidth{\cftfignumwidth}{Hình 99.99.\hspace{0.4em}}

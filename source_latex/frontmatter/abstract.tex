@@ -1,0 +1,26 @@
+% frontmatter/abstract.tex
+\begin{center}
+\pagestyle{empty}
+\Large \textbf{TOM TAT}
+\end{center}
+\addcontentsline{toc}{section}{TOM TAT}
+
+\vspace{0.5cm}
+Bao cao nay trinh bay qua trinh quy hoach, thiet ke va trien khai mo phong he thong mang Campus
+ba tang (Core -- Distribution -- Access) ket hop vung phi quan su (DMZ) su dung cong cu gia lap mang
+\textbf{Mininet} tren nen tang \textbf{Ubuntu Linux}. He thong duoc xay dung theo mo hinh thiet ke phan cap ba lop
+(\textit{Three-Layer Hierarchical Model}) nham dam bao tinh on dinh, kha nang mo rong va quan ly tap trung.
+
+Cac thanh phan chinh cua he thong bao gom: 
+(1)~\textbf{Topology ba lop} gom Core Router, hai Distribution Router (dist1, dist2), hai Access Switch (acc1, acc2) cung cac thiet bi dau cuoi tren VLAN\,10 va VLAN\,20; 
+(2)~\textbf{Vung DMZ} chua hai may chu Web (web1: 10.10.10.11, web2: 10.10.10.12) duoc bao ve boi dmz\_router va sw\_dmz; 
+(3)~\textbf{NAT/PAT} cho phep cac may chu noi bo truy cap Internet qua dia chi ngoai 203.0.113.1, dong thoi cau hinh \textit{Static NAT} anh xa web1 va web2 ra dia chi cong khai; 
+(4)~\textbf{ACL va Firewall} ngan chan truy cap trai phep vao cac cong nhay cam (22, 3306) tu mang ngoai;
+(5)~\textbf{Can bang tai theo nguong} voi Bo can bang tai Python tu dong chuyen may chu hoat dong giua web1 va web2 khi tai vuot nguong 80\% hoac giam xuong duoi 20\%;
+(6)~\textbf{Dinh tuyen dong OSPF} thong qua FRRouting (Zebra + OSPFd) dam bao hoi tu tu dong va thu hep thoi gian khi xay ra su co.
+
+Ket qua thuc nghiem cho thay he thong van hanh on dinh: thong luong TCP dat tren 88~Mbps sau NAT+ACL
+(chi giam khoang 6.1\% so voi khong bao mat), do tre RTT duoi 4~ms, co che chuyen may chu cua Load Balancer
+hoat dong dung theo nguong da thiet lap, va OSPF hoi tu thanh cong giua cac node.
+Day la mo hinh mang campus tieu bieu, dap ung day du yeu cau ve bao mat, hieu nang va kha nang mo rong
+cho cac doanh nghiep vua va nho.

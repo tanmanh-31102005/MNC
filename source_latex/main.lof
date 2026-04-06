@@ -1,0 +1,38 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Mô hình mạng}}{6}{figure.caption.1}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Sơ đồ kiến trúc}}{10}{figure.caption.6}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Tạo mạng ảo cho 2 site}}{12}{figure.caption.8}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Kiểm tra kết nối khác site (sau khi cấu hình router)}}{21}{figure.caption.10}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Kiểm tra Network Adapters}}{22}{figure.caption.11}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Xác nhận cấu hình NIC ROUTER-VM}}{23}{figure.caption.12}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Kiểm tra trạng thái dịch vụ (Running)}}{25}{figure.caption.13}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Kiểm tra Forwarding}}{25}{figure.caption.14}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Kiểm tra cấu hình ADDS}}{28}{figure.caption.15}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Kiểm tra DNS record}}{28}{figure.caption.16}%
+\contentsline {figure}{\numberline {5.8}{\ignorespaces Kiểm tra các dịch vụ}}{28}{figure.caption.17}%
+\contentsline {figure}{\numberline {5.9}{\ignorespaces Cấu hình AD Subnet}}{30}{figure.caption.18}%
+\contentsline {figure}{\numberline {5.10}{\ignorespaces Cấu trúc OU trong Active Directory}}{31}{figure.caption.19}%
+\contentsline {figure}{\numberline {5.11}{\ignorespaces Groups và Members}}{33}{figure.caption.20}%
+\contentsline {figure}{\numberline {5.12}{\ignorespaces FS1 join domain thành công}}{34}{figure.caption.21}%
+\contentsline {figure}{\numberline {5.13}{\ignorespaces Mở System Properties}}{35}{figure.caption.22}%
+\contentsline {figure}{\numberline {5.14}{\ignorespaces Chuyển WORKGROUP thành domain SonTaiThai}}{35}{figure.caption.22}%
+\contentsline {figure}{\numberline {5.15}{\ignorespaces Cài đặt DFS Namespace thành công}}{36}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.16}{\ignorespaces Tạo shared folder trên FS1}}{37}{figure.caption.24}%
+\contentsline {figure}{\numberline {5.17}{\ignorespaces Tạo DFS Namespace thành công}}{38}{figure.caption.25}%
+\contentsline {figure}{\numberline {5.18}{\ignorespaces Kiểm tra Namespace}}{39}{figure.caption.26}%
+\contentsline {figure}{\numberline {5.19}{\ignorespaces Namespace với hai root targets}}{40}{figure.caption.27}%
+\contentsline {figure}{\numberline {5.20}{\ignorespaces DFS Folder với hai targets}}{42}{figure.caption.28}%
+\contentsline {figure}{\numberline {5.21}{\ignorespaces Truy cập namespace từ client}}{43}{figure.caption.29}%
+\contentsline {figure}{\numberline {5.22}{\ignorespaces Cài đặt DFS Replication}}{44}{figure.caption.30}%
+\contentsline {figure}{\numberline {5.23}{\ignorespaces Cấu hình membership}}{46}{figure.caption.31}%
+\contentsline {figure}{\numberline {5.24}{\ignorespaces Kiểm tra DFSR backlog}}{48}{figure.caption.32}%
+\contentsline {figure}{\numberline {5.25}{\ignorespaces Kiểm tra replication trên Client 1}}{49}{figure.caption.33}%
+\contentsline {figure}{\numberline {5.26}{\ignorespaces Kiểm tra replication trên Client 2}}{50}{figure.caption.34}%
+\contentsline {figure}{\numberline {5.27}{\ignorespaces Test replication thành công}}{50}{figure.caption.35}%
+\contentsline {figure}{\numberline {5.28}{\ignorespaces Clients kết nối đến server trong cùng site}}{51}{figure.caption.36}%
+\contentsline {figure}{\numberline {5.29}{\ignorespaces Kiểm tra Failovert thành công}}{52}{figure.caption.37}%
+\addvspace {10\p@ }

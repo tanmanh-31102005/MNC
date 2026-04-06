@@ -1,0 +1,97 @@
+\chapter{Dinh tuyen dong OSPF voi FRRouting}
+
+\section{Giao thuc OSPF}
+
+OSPF (Open Shortest Path First) la giao thuc dinh tuyen trang thai duong lien ket (Link-State), hoat dong trong mot He tu tri (Autonomous System). Nhung dac diem chinh:
+
+\begin{itemize}
+    \item \textbf{Thuat toan Dijkstra (SPF):} Tinh duong di ngan nhat, dam bao khong co vong lap.
+    \item \textbf{Hoi tu nhanh:} Khi link down, OSPF phat hien va cap nhat bang dinh tuyen trong vai giay.
+    \item \textbf{Ho tro nhieu vung (Areas):} Giam luu luong LSA trong mang lon.
+    \item \textbf{Chi phi (Cost):} Metrix dua tren bang thong (100 Mbps / bandwidth), tu dong chon duong toi uu.
+\end{itemize}
+
+\section{FRRouting -- Goi phan mem dinh tuyen}
+
+FRRouting (FRR) la giao phan mem dinh tuyen nguon mo chay tren Linux, gom:
+
+\begin{itemize}
+    \item \textbf{Zebra daemon:} Quan ly bang dinh tuyen he dieu hanh va dong bo voi kernel.
+    \item \textbf{OSPFd:} Daemon chay giao thuc OSPF, gui/nhan LSA va chay thuat toan SPF.
+    \item \textbf{Vty shell:} Giao dien CLI tuong tu Cisco IOS de kiem tra trang thai.
+\end{itemize}
+
+\section{Cau hinh OSPF cho tung Router}
+
+\subsection{Core Router}
+
+\begin{lstlisting}
+! ospfd.conf -- Core Router (router-id 1.1.1.1)
+router ospf
+  ospf router-id 1.1.1.1
+  network 192.168.1.0/24 area 0
+  network 203.0.113.0/24 area 0
+\end{lstlisting}
+
+\subsection{Distribution Router dist1 va dist2}
+
+\begin{lstlisting}
+! dist1: router-id 2.2.2.2
+router ospf
+  ospf router-id 2.2.2.2
+  network 192.168.1.0/29  area 0
+  network 172.16.10.0/24  area 1
+  redistribute connected
+
+! dist2: router-id 3.3.3.3
+router ospf
+  ospf router-id 3.3.3.3
+  network 192.168.1.4/30  area 0
+  network 172.16.20.0/24  area 1
+  redistribute connected
+\end{lstlisting}
+
+\subsection{DMZ Router}
+
+\begin{lstlisting}
+! dmz_r: router-id 4.4.4.4
+router ospf
+  ospf router-id 4.4.4.4
+  network 192.168.1.8/30  area 0
+  network 10.10.10.0/24   area 2
+  redistribute connected
+\end{lstlisting}
+
+\section{Thiet ke OSPF Areas}
+
+\begin{table}[H]
+\centering
+\caption{Phan chia OSPF Areas trong he thong Campus Network}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|c|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+    \hline
+    \textbf{Area} & \textbf{Loai} & \textbf{Subnet} & \textbf{Router} \\ \hline
+    Area 0 (Backbone) & Normal & 192.168.1.0/24, 203.0.113.0/24 & Core, dist1, dist2, dmz\_r \\ \hline
+    Area 1 & Normal & 172.16.10.0/24, 172.16.20.0/24 & dist1, dist2 \\ \hline
+    Area 2 & Stub & 10.10.10.0/24 & dmz\_r \\ \hline
+\end{tabularx}
+\label{tab:ospf_areas}
+\end{table}
+
+\section{Kiem tra OSPF sau khi trien khai}
+
+Sau khi khoi dong FRR tren tat ca cac Router, kiem tra trang thai OSPF bang vtysh:
+
+\begin{lstlisting}
+# Kiem tra Neighbor
+show ip ospf neighbor
+# -> dist1, dist2, dmz_r phai o trang thai Full/DR hoac Full/BDR
+
+# Kiem tra Bang dinh tuyen OSPF
+show ip route ospf
+# O  172.16.10.0/24 [110/20] via 192.168.1.2
+# O  172.16.20.0/24 [110/20] via 192.168.1.6
+# O  10.10.10.0/24  [110/20] via 192.168.1.10
+\end{lstlisting}
+
+\textbf{Ket qua hoi tu khi su co:} Khi tat ket noi Core -- dist1, OSPF tu dong hoi tu qua dist2 trong khoang 12~--~15 giay, khong can chinh sua thu cong.

@@ -1,0 +1,68 @@
+\chapter{Tong quan du an}
+
+\section{Gioi thieu}
+
+Trong boi canh cac to chuc, doanh nghiep ngay cang phu thuoc vao he thong mang noi bo de ket noi nhan vien, cung cap dich vu truc tuyen va bao ve tai nguyen du lieu, viec thiet ke mot he thong mang Campus an toan, hieu qua va co kha nang mo rong tro nen cuc ky quan trong.
+
+Bai tap nay dat muc tieu thiet ke va trien khai mo phong day du mot he thong mang Campus quy mo trung binh bao gom:
+
+\begin{itemize}
+    \item \textbf{Kien truc ba lop (3-tier):} Core -- Distribution -- Access theo mo hinh phan cap chuan cong nghiep Cisco.
+    \item \textbf{Vung phi quan su (DMZ):} Cach ly cac may chu Web cong cong khoi mang noi bo, cung cap dich vu HTTP cho nguoi dung ben ngoai.
+    \item \textbf{Bao mat da tang:} Ket hop NAT/PAT, Static NAT, Access Control List (ACL) va Firewall de bao ve toan bo he thong.
+    \item \textbf{Can bang tai tu dong:} Bo can bang tai dua tren nguong su dung luong (throughput threshold) tu dong chuyen doi may chu hoat dong giua web1 va web2.
+    \item \textbf{Dinh tuyen dong OSPF:} Su dung FRRouting (Zebra + OSPFd) de dam bao hoi tu tu dong, toi thieu thoi gian su co khi mot duong ket noi gap loi.
+\end{itemize}
+
+Tat ca cac thanh phan tren duoc trien khai tren nen tang gia lap \textbf{Mininet} chay tren Ubuntu Linux, voi cac kich ban duoc viet bang \textbf{Python}, cho phep kiem thu sac xuat cao ma khong can thiet bi vat ly.
+
+\section{Phan tich yeu cau}
+
+\subsection{Yeu cau chuc nang}
+
+\begin{itemize}
+    \item \textbf{Ket noi noi bo:} Cac may chu tren VLAN\,10 (Hanh chinh) va VLAN\,20 (Ky thuat) co the giao tiep voi nhau thong qua dinh tuyen lien mang (Inter-VLAN Routing).
+    \item \textbf{Truy cap DMZ:} Nguoi dung noi bo co the truy cap web1 va web2 trong DMZ; nguoi dung ben ngoai chi duoc phep truy cap cong 80 (HTTP).
+    \item \textbf{Truy cap Internet:} May chu noi bo truy cap Internet thong qua NAT/PAT tren Core Router.
+    \item \textbf{Can bang tai:} He thong tu dong phat hien qua tai tren web1 va chuyen sang web2, nguoc lai khi tai giam.
+    \item \textbf{Dinh tuyen dong:} OSPF tu dong hoc va hoi tu tuyen duong, khong phu thuoc vao cau hinh tinh.
+\end{itemize}
+
+\subsection{Yeu cau bao mat}
+
+\begin{itemize}
+    \item Chan truy cap SSH (cong 22) va MySQL (cong 3306) tu mang ngoai vao DMZ.
+    \item Chan quet cong va tan cong tu nguon khong xac dinh.
+    \item Cach ly VLAN\,10 va VLAN\,20: tra luu luong phai di qua Core Router de kiem soat.
+    \item Static NAT dam bao may chu DMZ co dia chi cong khai on dinh de kiem tra va giam sat.
+\end{itemize}
+
+\subsection{Yeu cau hieu nang}
+
+\begin{itemize}
+    \item Thong luong TCP giua cac VLAN toi thieu dat 80~Mbps.
+    \item Do tre RTT (Round-Trip Time) khong vuot qua 5~ms trong mang noi bo.
+    \item Overhead bao mat (NAT + ACL) duoi 10\% so voi ket noi khong bao mat.
+    \item Load Balancer phat hien va chuyen may chu trong vong duoi 5 giay.
+\end{itemize}
+
+\section{Thiet ke he thong tong the}
+
+Mo hinh tong the duoc to chuc theo mo hinh phan cap ba lop (Hierarchical 3-Layer Model), bao gom:
+
+\begin{itemize}
+    \item \textbf{Core Layer:} Mot Core Router (192.168.1.1) toc do cao, ket noi tat ca cac lop va la diem xuat len Internet / DMZ. Day la noi thuc hien NAT va OSPF cho toan bo he thong.
+    \item \textbf{Distribution Layer:} Hai Distribution Router (dist1: 192.168.1.2, dist2: 192.168.1.6) tap trung luu luong tu cac tang, thuc hien Inter-VLAN Routing giua VLAN\,10 va VLAN\,20.
+    \item \textbf{Access Layer:} Hai Access Switch (acc1 cho VLAN\,10, acc2 cho VLAN\,20) ket noi truc tiep voi thiet bi dau cuoi.
+    \item \textbf{DMZ:} DMZ Router (192.168.1.10) ket noi Core Router voi mang DMZ (10.10.10.0/24) qua sw\_dmz. Hai may chu web1 (10.10.10.11) va web2 (10.10.10.12) phuc vu HTTP.
+    \item \textbf{Outside:} Router ngoai r\_out (203.0.113.1) va may tram ngoai h\_out (203.0.113.100) gia lap mang Internet.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart0_topology_diagram.png}
+    \caption{So do logic Topology -- Campus Network 3 lop + DMZ}
+    \label{fig:topology}
+\end{figure}
+
+So do tren the hien ro rang vi tri va quan he giua cac lop mang, cung nhu pham vi bao mat duoc ap dung tai moi vung (Access Layer, Distribution Layer, Core Layer, DMZ + Outside).

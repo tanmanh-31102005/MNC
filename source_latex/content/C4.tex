@@ -1,0 +1,148 @@
+\chapter{Can bang tai (Load Balancer)}
+
+\section{Gioi thieu ve can bang tai}
+
+Can bang tai (Load Balancing) la ky thuat phan phoi luu luong mang hoac yeu cau xu ly giua nhieu may chu, nham:
+\begin{itemize}
+    \item Ngan ngua qua tai tren mot may chu don le.
+    \item Tang tinh san sang (High Availability): khi mot may chu qua tai, may chu khac tiep nhan.
+    \item Tang thong luong tong the cua he thong.
+\end{itemize}
+
+Trong du an nay, bo can bang tai duoc xay dung bang Python, chay tren Core Router, giam sat luu luong cua web1 va web2 theo thoi gian thuc va tu dong chuyen doi may chu hoat dong theo nguong da dinh.
+
+\section{Thuat toan can bang tai theo nguong (Threshold-Based)}
+
+\subsection{Nguyen ly hoat dong}
+
+Thuat toan dua tren hai nguong:
+\begin{itemize}
+    \item \textbf{Nguong CAO (HIGH\_THRESHOLD = 80 Mbps):} Neu luu luong web1 vuot qua nguong nay trong khi web1 dang la may chu chinh (active), he thong chuyen sang web2.
+    \item \textbf{Nguong THAP (LOW\_THRESHOLD = 20 Mbps):} Neu luu luong web1 giam xuong duoi nguong nay trong khi web2 dang active, he thong chuyen lai web1.
+\end{itemize}
+
+\subsection{Trang thai may chu}
+
+\begin{table}[H]
+\centering
+\caption{Cac trang thai cua Bo can bang tai}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+    \hline
+    \textbf{Trang thai} & \textbf{Dieu kien chuyen` sang} & \textbf{Mo ta} \\ \hline
+    \textbf{WEB1 Active} & web1 load $>$ 80\% \textrightarrow{} SWITCH sang WEB2 & web1 phuc vu tat ca yeu cau, web2 standby \\ \hline
+    \textbf{WEB2 Active} & web1 load $<$ 20\% \textrightarrow{} SWITCH sang WEB1 & web2 phuc vu tat ca yeu cau, web1 standby \\ \hline
+    \textbf{HOLD} & Khong co thay doi & Giu nguyen trang thai hien tai \\ \hline
+\end{tabularx}
+\label{tab:lb_states}
+\end{table}
+
+\subsection{Cai dat Load Balancer bang Python}
+
+\begin{lstlisting}
+#!/usr/bin/env python3
+# load_balancer.py -- Bo can bang tai theo nguong
+
+HIGH_THRESHOLD = 80   # Mbps -- Nguong chuyen sang WEB2
+LOW_THRESHOLD  = 20   # Mbps -- Nguong chuyen lai WEB1
+INTERVAL       = 2    # Giay -- Chu ky kiem tra
+
+active_server  = 'WEB1'
+
+def get_throughput(host, interface):
+    """Doc luu luong hien tai tren mot interface (Mbps)."""
+    out = host.cmd(f'cat /proc/net/dev | grep {interface}')
+    # Parse rx_bytes, tinh Mbps theo delta
+    ...
+
+def switch_to(net, new_server):
+    """Cap nhat quy tac iptables de chuyen luu luong."""
+    global active_server
+    core = net.get('core')
+    # Xoa quy tac cu
+    core.cmd('iptables -t nat -F PREROUTING')
+    if new_server == 'WEB2':
+        # Chuyen toan bo HTTP den web2
+        core.cmd('iptables -t nat -A PREROUTING '
+                 '-p tcp --dport 80 '
+                 '-j DNAT --to-destination 10.10.10.12:80')
+    else:
+        # Tra lai web1
+        core.cmd('iptables -t nat -A PREROUTING '
+                 '-p tcp --dport 80 '
+                 '-j DNAT --to-destination 10.10.10.11:80')
+    active_server = new_server
+    print(f'[SWITCH] -> {new_server}')
+
+def monitor(net):
+    """Vong lap giam sat chinh."""
+    while True:
+        w1_mbps = get_throughput(net.get('web1'), 'web1-eth0')
+        w2_mbps = get_throughput(net.get('web2'), 'web2-eth0')
+
+        if active_server == 'WEB1' and w1_mbps > HIGH_THRESHOLD:
+            switch_to(net, 'WEB2')
+        elif active_server == 'WEB2' and w1_mbps < LOW_THRESHOLD:
+            switch_to(net, 'WEB1')
+
+        log_to_csv(timestamp, w1_mbps, w2_mbps, active_server)
+        time.sleep(INTERVAL)
+\end{lstlisting}
+
+\section{Ket qua can bang tai}
+
+\subsection{Bieu do luu luong theo thoi gian}
+
+Hinh \ref{fig:load_timeline} the hien luu luong cua web1 va web2 theo thoi gian thuc nghiem, kem theo cac thoi diem chuyen doi may chu duoc danh dau bang duong day doc mau tim:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart1_load_timeline.png}
+    \caption{Bieu do can bang tai -- Luu luong Web1 va Web2 theo thoi gian}
+    \label{fig:load_timeline}
+\end{figure}
+
+Nhan xet:
+\begin{itemize}
+    \item Khi luu luong web1 tang vuot nguong 80~Mbps (duong ke do), he thong tu dong chuyen sang web2 (vung nen mau cam).
+    \item Sau khi chuyen, luu luong web1 giam xuong ro ret (chi con khoang 20-30\% gia tri ban dau) trong khi web2 chiu tai tang len.
+    \item Khi luu luong web1 giam xuong duoi nguong 20~Mbps, he thong chuyen lai web1 lam may chu chinh.
+    \item Co che hoat dong on dinh, khong co hien tuong lap (flip-flop) khong kiem soat.
+\end{itemize}
+
+\subsection{Bieu do phan phoi tai tich luy}
+
+Hinh \ref{fig:stacked_load} the hien tong tai duoc phan phoi giua web1 va web2 theo dang Stacked Area Chart, lam noi bat kha nang phan bo luu luong cua he thong:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart5_stacked_load.png}
+    \caption{Phan phoi tai tich luy giua Web1 va Web2 (Stacked Area)}
+    \label{fig:stacked_load}
+\end{figure}
+
+Nhan xet:
+\begin{itemize}
+    \item Tong luong (web1 + web2) la tuong doi on dinh, xac nhan he thong khong bi mat goi khi chuyen may chu.
+    \item Viec phan bo tai giua hai may chu the hien ro rang qua mau sac phan biet (xanh = web1, cam = web2).
+    \item He thong cat giam dang ke nguy co website bi gian doan do qua tai don le.
+\end{itemize}
+
+\subsection{Bang tong ket hieu nang can bang tai}
+
+\begin{table}[H]
+\centering
+\caption{Tong ket hieu nang he thong can bang tai}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}X|c|c|}
+    \hline
+    \textbf{STT} & \textbf{Chi tieu} & \textbf{Ket qua} & \textbf{Danh gia} \\ \hline
+    1 & Nguong chuyen sang WEB2 & 80 Mbps & Dat \\ \hline
+    2 & Nguong chuyen lai WEB1 & 20 Mbps & Dat \\ \hline
+    3 & Thoi gian phat hien va chuyen & < 5 giay & Dat \\ \hline
+    4 & Mat goi khi chuyen may chu & 0\% & Dat \\ \hline
+    5 & On dinh sau khi chuyen & Khong flip-flop & Dat \\ \hline
+    6 & Ghi log CSV tu dong & Co & Dat \\ \hline
+\end{tabularx}
+\label{tab:lb_perf}
+\end{table}

@@ -1,0 +1,157 @@
+\chapter{Trien khai Bao mat: NAT/PAT, ACL va Firewall}
+
+\section{Tong quan kien truc bao mat}
+
+He thong ap dung mo hinh bao mat da tang (Defense-in-Depth), trong do moi lop mang co chinh sach bao mat rieng:
+
+\begin{itemize}
+    \item \textbf{Bien gioi Inside -- Outside:} NAT/PAT an dia chi noi bo, ACL kiem soat luong di vao.
+    \item \textbf{Vung DMZ:} Cach ly may chu Web, chi cho phep HTTP (cong 80) tu ben ngoai.
+    \item \textbf{Noi bo:} Kiem soat luu luong giua VLAN 10 va VLAN 20 qua Distribution Router.
+\end{itemize}
+
+\section{Network Address Translation (NAT/PAT)}
+
+\subsection{NAT dong -- Port Address Translation (PAT)}
+
+PAT (hay NAT Overload) cho phep nhieu dia chi IP noi bo chia se mot dia chi IP ngoai (203.0.113.1) bang cach phan biet cac ket noi qua so hieu cong TCP/UDP.
+
+\textbf{Cau hinh PAT tren Core Router bang iptables:}
+
+\begin{lstlisting}
+# Bat PAT: mang noi bo -> interface ngoai
+iptables -t nat -A POSTROUTING \
+    -s 172.16.0.0/16 \
+    -o core-eth-out \
+    -j MASQUERADE
+
+# Hoac dinh tuong minh dia chi ngoai:
+iptables -t nat -A POSTROUTING \
+    -s 172.16.0.0/16 \
+    -o core-eth-out \
+    -j SNAT --to-source 203.0.113.1
+\end{lstlisting}
+
+\subsection{Static NAT cho may chu DMZ}
+
+Static NAT anh xa mot-mot giua dia chi noi bo va dia chi cong khai, dam bao may chu DMZ luon co the duoc truy cap tu ngoai Internet bang dia chi co dinh.
+
+\begin{lstlisting}
+# Static NAT: web1 (10.10.10.11) -> 203.0.113.10
+iptables -t nat -A PREROUTING \
+    -d 203.0.113.10 -p tcp --dport 80 \
+    -j DNAT --to-destination 10.10.10.11:80
+
+iptables -t nat -A POSTROUTING \
+    -s 10.10.10.11 \
+    -j SNAT --to-source 203.0.113.10
+
+# Static NAT: web2 (10.10.10.12) -> 203.0.113.11
+iptables -t nat -A PREROUTING \
+    -d 203.0.113.11 -p tcp --dport 80 \
+    -j DNAT --to-destination 10.10.10.12:80
+
+iptables -t nat -A POSTROUTING \
+    -s 10.10.10.12 \
+    -j SNAT --to-source 203.0.113.11
+\end{lstlisting}
+
+\subsection{Bang NAT Translation}
+
+Bang \ref{fig:nat_table} mo ta day du cac muc nat dang hoat dong trong he thong bao gom ca PAT dong va Static NAT:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart6_nat_table.png}
+    \caption{Bang NAT Translation -- He thong Campus Network}
+    \label{fig:nat_table}
+\end{figure}
+
+Trong do:
+\begin{itemize}
+    \item \textbf{Hang mau vang:} Static NAT cho DMZ Web Server (web1, web2) -- anh xa co dinh.
+    \item \textbf{Hang mau trang/xanh:} PAT dong cho cac may chu noi bo (VLAN 10, VLAN 20) -- su dung cong TCP ngan phan biet.
+\end{itemize}
+
+\section{Access Control List (ACL) va Firewall}
+
+\subsection{Chinh sach bao mat}
+
+Bang \ref{tab:acl_policy} tong hop cac chinh sach ACL duoc ap dung trong he thong:
+
+\begin{table}[H]
+\centering
+\caption{Chinh sach ACL ap dung cho he thong Campus Network}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}X|l|l|c|}
+    \hline
+    \textbf{STT} & \textbf{Nguon} & \textbf{Dich} & \textbf{Cong} & \textbf{Hanh dong} \\ \hline
+    1 & Inside (172.16.0.0/16) & Any & 80 (HTTP) & ALLOW \\ \hline
+    2 & Inside (172.16.0.0/16) & Any & 443 (HTTPS) & ALLOW \\ \hline
+    3 & Inside (172.16.0.0/16) & Any & 53 (DNS) & ALLOW \\ \hline
+    4 & Outside (203.0.113.0/24) & DMZ & 80 (HTTP) & ALLOW \\ \hline
+    5 & Outside (bat ky) & DMZ & 22 (SSH) & DROP \\ \hline
+    6 & Outside (bat ky) & DMZ & 3306 (MySQL) & DROP \\ \hline
+    7 & Unknown & Any & Any & DROP \\ \hline
+    8 & Any & Any & Any & DROP (mac dinh) \\ \hline
+\end{tabularx}
+\label{tab:acl_policy}
+\end{table}
+
+\subsection{Cau hinh ACL bang iptables}
+
+\begin{lstlisting}
+# Cho phep HTTP tu noi bo vao DMZ
+iptables -A FORWARD \
+    -s 172.16.0.0/16 -d 10.10.10.0/24 \
+    -p tcp --dport 80 -j ACCEPT
+
+# Cho phep HTTP tu Outside vao DMZ (qua Static NAT)
+iptables -A FORWARD \
+    -s 203.0.113.0/24 -d 10.10.10.0/24 \
+    -p tcp --dport 80 -j ACCEPT
+
+# CHAN SSH tu Outside vao DMZ
+iptables -A FORWARD \
+    -d 10.10.10.0/24 \
+    -p tcp --dport 22 -j DROP
+
+# CHAN MySQL tu Outside vao DMZ
+iptables -A FORWARD \
+    -d 10.10.10.0/24 \
+    -p tcp --dport 3306 -j DROP
+
+# MAC DINH: DROP tat ca
+iptables -P FORWARD DROP
+\end{lstlisting}
+
+\subsection{Ket qua kiem tra ACL -- Heatmap}
+
+Hinh \ref{fig:acl_heatmap} the hien ket qua kiem tra ACL qua Heatmap so goi bi chan theo nguon va cong dich:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{chart2_acl_heatmap.png}
+    \caption{Heatmap ACL/Firewall -- So goi bi DROP theo nguon va dich}
+    \label{fig:acl_heatmap}
+\end{figure}
+
+Nhan xet:
+\begin{itemize}
+    \item \textbf{O mau xanh (ALLOW):} Luu luong HTTP tu VLAN noi bo den DMZ duoc cho phep, so goi bi chan = 0.
+    \item \textbf{O mau do dam (DROP cao):} Luu luong tu Outside tan cong cong 22 va 3306 bi chan hoan toan (tren 900 goi tu mot nguon).
+    \item \textbf{Nguon Unknown:} Bi chan o tat ca cac cong, the hien he thong tuat bo goi tu nguon khong ro.
+    \item ACL hoat dong chinh xac, bao ve day du may chu DMZ khoi cac tan cong pho bien (SSH brute-force, SQL injection qua MySQL).
+\end{itemize}
+
+\section{Kien truc bao mat DMZ}
+
+Vung DMZ (De-Militarized Zone) duoc thiet ke voi nguyen tac:
+
+\begin{itemize}
+    \item \textbf{Cach ly vat ly ao:} dmz\_r la the gioi ket noi giua Core Network va DMZ Network, khong co luong truc tiep giua Outside va Inside.
+    \item \textbf{Nguyen tac toi thieu quyen truy cap:} Chi mo cong 80 la tuyet doi can thiet cho dich vu Web.
+    \item \textbf{Kiem soat hai chieu:} Luong vao DMZ qua PREROUTING (Static NAT + ACL), luong ra qua POSTROUTING (SNAT).
+\end{itemize}
+
+Nho vay, ngay ca khi may chu web1 hoac web2 bi tan cong va chiem quyen, ke tan cong van khong the truy cap mang noi bo (VLAN 10, VLAN 20) vi ACL chan hoan toan luu luong tu DMZ vao Inside.

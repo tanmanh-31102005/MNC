@@ -1,0 +1,154 @@
+\chapter{Thiet ke Topology va Ha tang Mang}
+
+\section{Mo hinh phan cap ba lop (3-Tier Hierarchical)}
+
+He thong mang Campus duoc xay dung theo mo hinh phan cap ba lop chuan Cisco, dam bao tinh mo dun hoa, de quan ly va de mo rong. Moi lop co chuc nang va vai tro rieng biet:
+
+\begin{itemize}
+    \item \textbf{Core Layer (Lop Loi):} Xu ly chuyen mach toc do cao, ket noi tat ca cac lop phan phoi va la diem trung tam cho luu luong lien mang. Core Router thuc hien NAT, OSPF va dinh tuyen ra ngoai.
+    \item \textbf{Distribution Layer (Lop Phan phoi):} Tap trung luu luong tu cac tang truy cap, thuc hien Inter-VLAN Routing, bo loc va kiem soat chinh sach mang.
+    \item \textbf{Access Layer (Lop Truy cap):} Ket noi truc tiep voi thiet bi dau cuoi (may tinh, may in, dien thoai IP). Thuc hien VLAN assignment va port security co ban.
+\end{itemize}
+
+\section{Quy hoach dia chi IP}
+
+He thong su dung cac dai mang con (subnet) phan tach ro rang cho tung phan cua mang. Bang \ref{tab:ip_plan} tong hop toan bo quy hoach dia chi IP.
+
+\begin{table}[H]
+\centering
+\caption{Bang quy hoach dia chi IP cho he thong mang Campus}
+\vspace{0.3cm}
+\begin{tabularx}{\textwidth}{|c|>{\raggedright\arraybackslash}X|l|l|l|}
+    \hline
+    \textbf{Thiet bi} & \textbf{Vi tri / Vai tro} & \textbf{Dia chi IP} & \textbf{Subnet} & \textbf{Gateway} \\ \hline
+    \textbf{h1} & VLAN 10 -- Hanh chinh & 172.16.10.10 & /24 & 172.16.10.1 \\ \hline
+    \textbf{printer1} & VLAN 10 -- May in & 172.16.10.30 & /24 & 172.16.10.1 \\ \hline
+    \textbf{h2} & VLAN 20 -- Ky thuat & 172.16.20.10 & /24 & 172.16.20.1 \\ \hline
+    \textbf{phone1} & VLAN 20 -- Dien thoai IP & 172.16.20.20 & /24 & 172.16.20.1 \\ \hline
+    \textbf{acc1} & Access Switch (VLAN 10) & -- & L2 & -- \\ \hline
+    \textbf{acc2} & Access Switch (VLAN 20) & -- & L2 & -- \\ \hline
+    \textbf{dist1} & Distribution Router & 192.168.1.2 & /30 & 192.168.1.1 \\ \hline
+    \textbf{dist2} & Distribution Router & 192.168.1.6 & /30 & 192.168.1.1 \\ \hline
+    \textbf{Core} & Core Router (Gateway) & 192.168.1.1 & /24 & -- \\ \hline
+    \textbf{dmz\_r} & DMZ Router & 192.168.1.10 & /24 & 192.168.1.1 \\ \hline
+    \textbf{sw\_dmz} & DMZ Switch & -- & L2 & -- \\ \hline
+    \textbf{web1} & DMZ Web Server 1 & 10.10.10.11 & /24 & 10.10.10.1 \\ \hline
+    \textbf{web2} & DMZ Web Server 2 & 10.10.10.12 & /24 & 10.10.10.1 \\ \hline
+    \textbf{r\_out} & Outside Router (ISP) & 203.0.113.1 & /24 & -- \\ \hline
+    \textbf{h\_out} & Outside Host & 203.0.113.100 & /24 & 203.0.113.1 \\ \hline
+\end{tabularx}
+\label{tab:ip_plan}
+\end{table}
+
+\section{Trien khai bang Mininet Python}
+
+\subsection{Cong cu su dung}
+
+\begin{itemize}
+    \item \textbf{Mininet:} Gia lap mang tren mot may chu Linux, su dung Linux namespaces va virtual Ethernet (veth) de tao cac node ao.
+    \item \textbf{Python (mininet.topo):} Viet script xay dung topology, cau hinh IP, them cac ket noi vat ly ao.
+    \item \textbf{FRRouting (FRR):} Goi phan mem dinh tuyen chay Zebra daemon va OSPFd tren cac node Router.
+    \item \textbf{iptables:} Cong cu Linux thuc hien NAT, PAT va ACL/Firewall.
+\end{itemize}
+
+\subsection{Xay dung Topology bang Python}
+
+Kieu script Python dung loi thu vien \texttt{mininet.topo} de khai bao cac node va ket noi:
+
+\begin{lstlisting}
+from mininet.topo import Topo
+from mininet.net import Mininet
+from mininet.node import Host, OVSSwitch
+
+class CampusTopo(Topo):
+    def build(self):
+        # --- Core ---
+        core = self.addHost('core', ip='192.168.1.1/24')
+
+        # --- Distribution ---
+        dist1 = self.addHost('dist1', ip='192.168.1.2/30')
+        dist2 = self.addHost('dist2', ip='192.168.1.6/30')
+
+        # --- Access Switches ---
+        acc1 = self.addSwitch('acc1')
+        acc2 = self.addSwitch('acc2')
+
+        # --- End Hosts (VLAN 10) ---
+        h1       = self.addHost('h1',       ip='172.16.10.10/24',
+                                defaultRoute='via 172.16.10.1')
+        printer1 = self.addHost('printer1', ip='172.16.10.30/24',
+                                defaultRoute='via 172.16.10.1')
+
+        # --- End Hosts (VLAN 20) ---
+        h2     = self.addHost('h2',     ip='172.16.20.10/24',
+                              defaultRoute='via 172.16.20.1')
+        phone1 = self.addHost('phone1', ip='172.16.20.20/24',
+                              defaultRoute='via 172.16.20.1')
+
+        # --- DMZ ---
+        dmz_r  = self.addHost('dmz_r',  ip='192.168.1.10/24')
+        sw_dmz = self.addSwitch('sw_dmz')
+        web1   = self.addHost('web1', ip='10.10.10.11/24',
+                              defaultRoute='via 10.10.10.1')
+        web2   = self.addHost('web2', ip='10.10.10.12/24',
+                              defaultRoute='via 10.10.10.1')
+
+        # --- Outside ---
+        r_out = self.addHost('r_out',  ip='203.0.113.1/24')
+        h_out = self.addHost('h_out',  ip='203.0.113.100/24',
+                             defaultRoute='via 203.0.113.1')
+
+        # --- Links ---
+        self.addLink(h1, acc1)
+        self.addLink(printer1, acc1)
+        self.addLink(h2, acc2)
+        self.addLink(phone1, acc2)
+        self.addLink(acc1, dist1)
+        self.addLink(acc2, dist2)
+        self.addLink(dist1, core)
+        self.addLink(dist2, core)
+        self.addLink(core, dmz_r)
+        self.addLink(core, r_out)
+        self.addLink(dmz_r, sw_dmz)
+        self.addLink(sw_dmz, web1)
+        self.addLink(sw_dmz, web2)
+        self.addLink(r_out, h_out)
+\end{lstlisting}
+
+\subsection{Cau hinh IP Forwarding}
+
+De chuc nang dinh tuyen hoat dong tren cac node lam Router trong Mininet, can bat \texttt{ip\_forward}:
+
+\begin{lstlisting}
+# Bat tren toan bo network namespace
+for node in [core, dist1, dist2, dmz_r, r_out]:
+    node.cmd('sysctl -w net.ipv4.ip_forward=1')
+\end{lstlisting}
+
+\section{Cau hinh VLAN va Inter-VLAN Routing}
+
+\subsection{Phan chia VLAN logic}
+
+Trong mo hinh Mininet, VLAN duoc phan chia qua subnet, khong phai 802.1Q tag. Moi Access Switch phuc vu mot subnet rieng:
+
+\begin{itemize}
+    \item \textbf{acc1} -- VLAN 10: Subnet 172.16.10.0/24, phuc vu h1 va printer1.
+    \item \textbf{acc2} -- VLAN 20: Subnet 172.16.20.0/24, phuc vu h2 va phone1.
+\end{itemize}
+
+\subsection{Inter-VLAN Routing qua Core}
+
+Core Router lam Gateway cho ca hai VLAN. Cau hinh dia chi IP tren hai interface ket noi ve dist1 va dist2:
+
+\begin{lstlisting}
+# Tren Distribution Router dist1
+dist1.cmd('ip addr add 172.16.10.1/24 dev dist1-eth1')  # Gateway VLAN 10
+dist1.cmd('ip route add default via 192.168.1.1')        # Route len Core
+
+# Tren Core Router
+core.cmd('ip route add 172.16.10.0/24 via 192.168.1.2') # Qua dist1
+core.cmd('ip route add 172.16.20.0/24 via 192.168.1.6') # Qua dist2
+core.cmd('ip route add 10.10.10.0/24  via 192.168.1.10')# Qua dmz_r
+\end{lstlisting}
+
+Ket qua: h1 (VLAN 10) co the ping den h2 (VLAN 20) thong qua dist1 -- core -- dist2, tuong tu nhu Inter-VLAN Routing tren thiet bi thuc te.

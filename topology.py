@@ -23,6 +23,7 @@ from mininet.node  import Node
 from mininet.log   import setLogLevel, info, error
 from mininet.cli   import CLI
 from mininet.link  import TCLink
+import traceback
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 0. Thiết lập tham số dòng lệnh
@@ -262,11 +263,53 @@ def apply_nat(net):
 
 
 def show_nat_table(net):
-    """In bảng NAT (conntrack) dưới dạng text ra stdout."""
+    """In đầy đủ bảng NAT: iptables rules + conntrack sessions + IP aliases."""
     r_out = net.get('r_out')
-    info('\n*** [NAT TABLE] Bảng conntrack hiện tại trên r_out:\n')
-    out = r_out.cmd('conntrack -L -n 2>/dev/null || echo "conntrack chưa cài, dùng: apt install conntrack"')
-    print(out)
+
+    SEP = '─' * 62
+
+    # ── 1. iptables NAT rules (luôn hiển thị) ─────────────────────────
+    print(f'\n{SEP}')
+    print('  [1] iptables NAT rules trên r_out')
+    print(SEP)
+    print(r_out.cmd('iptables -t nat -L -n -v --line-numbers 2>&1'))
+
+    # ── 2. IP aliases (Public IPs gán trên rout-eth2) ──────────────────
+    print(f'{SEP}')
+    print('  [2] IP aliases trên rout-eth2 (Public IPs)')
+    print(SEP)
+    print(r_out.cmd('ip addr show dev rout-eth2 2>&1'))
+
+    # ── 3. Conntrack sessions (chỉ hiển thị nếu có traffic) ────────────
+    print(f'{SEP}')
+    print('  [3] Conntrack – phiên NAT đang hoạt động')
+    print(SEP)
+    # Kiểm tra conntrack có cài không
+    check = r_out.cmd('which conntrack 2>/dev/null')
+    if check.strip():
+        ct_out = r_out.cmd('conntrack -L 2>&1')
+        count  = r_out.cmd('conntrack -C 2>/dev/null').strip()
+        print(ct_out if ct_out.strip() else '  (Chưa có phiên NAT nào – hãy sinh traffic trước)')
+        print(f'  Tổng entries: {count}')
+    else:
+        print('  conntrack chưa cài. Cài bằng:')
+        print('    sudo apt-get install -y conntrack')
+        print()
+        print('  Để xem NAT nhanh dùng:')
+        print('    cat /proc/net/nf_conntrack  (nếu module đã load)')
+        # Fallback: /proc
+        proc = r_out.cmd('cat /proc/net/nf_conntrack 2>/dev/null | head -20')
+        if proc.strip():
+            print('\n  /proc/net/nf_conntrack (20 dòng đầu):')
+            print(proc)
+
+    # ── 4. Gợi ý sinh traffic ──────────────────────────────────────────
+    print(f'{SEP}')
+    print('  Gợi ý: sinh NAT traffic bằng lệnh sau trong CLI:')
+    print('    h1 curl -s 203.0.113.10 &     # test Static NAT → web1')
+    print('    h2 ping -c 3 203.0.113.100    # test PAT outbound')
+    print('    py show_nat_table(net)         # chạy lại để thấy entries')
+    print(SEP + '\n')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -335,7 +378,66 @@ def start_web_servers(net):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Kiểm tra kết nối ban đầu (quick-start test)
+# 7. Load Balancer tích hợp
+# ─────────────────────────────────────────────────────────────────────────────
+
+def start_load_balancer(net, demo: bool = False):
+    """
+    Khởi động load_balancer.py trong terminal mới với đúng PID và interface.
+
+    Lưu ý về luồng traffic:
+      h1 iperf3 -c 10.10.10.11  →  dist1 → core → dmz_r (dmz-eth2) → web1
+      Interface cần monitor: dmz-eth2 trên dmz_r  (không phải rout-eth2!)
+
+    Để trigger switching:
+      mininet> h_out iperf3 -c 203.0.113.10 -t 60 -b 95M &
+      (traffic qua r_out → dmz_r → web1,  đo trên dmz-eth2)
+    """
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'load_balancer.py')
+    if not os.path.exists(script):
+        error(f'[LB] Không tìm thấy {script}!\n')
+        return
+
+    # Lấy đúng PID của các node từ Mininet
+    dmz_r = net.get('dmz_r')
+    r_out = net.get('r_out')
+    dmz_pid  = str(dmz_r.pid)
+    rout_pid = str(r_out.pid)
+
+    info(f'*** [LB] Khởi động Load Balancer...\n')
+    info(f'    dmz_r PID={dmz_pid}  (monitor dmz-eth2)\n')
+    info(f'    r_out PID={rout_pid} (áp dụng NAT rule khi chuyển đổi)\n')
+
+    cmd = [
+        'python3', script,
+        '--node',      'dmz_r',
+        '--iface',     'dmz-eth2',
+        '--pid',       dmz_pid,
+        '--r_out_pid', rout_pid,
+        '--maxbw',     '100',
+    ]
+    if demo:
+        cmd.append('--demo')
+        info('    Chế độ DEMO (random load) – thấy chuyển đổi ngay.\n')
+    else:
+        info('    Chế độ THỰC – cần traffic: h_out iperf3 -c 203.0.113.10 -t 60 -b 95M\n')
+
+    # Chạy trong terminal mới (xterm)
+    try:
+        subprocess.Popen(
+            ['xterm', '-title', 'Load Balancer Monitor', '-e', ' '.join(cmd)]
+        )
+        info('    [OK] Load Balancer đang chạy trong cửa sổ xterm mới.\n')
+    except FileNotFoundError:
+        # Fallback: chạy nền trong cùng terminal, output ra file
+        log_path = '/tmp/lb_monitor.log'
+        subprocess.Popen(cmd, stdout=open(log_path, 'w'), stderr=subprocess.STDOUT)
+        info(f'    [OK] Load Balancer chạy nền → log tại {log_path}\n')
+        info(f'    Theo dõi: tail -f {log_path}\n')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Kiểm tra kết nối ban đầu (quick-start test)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_connectivity_test(net):
@@ -356,7 +458,47 @@ def run_connectivity_test(net):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Hàm main
+# 8. Custom CLI – expose campus helper functions trong lệnh `py`
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CampusCLI(CLI):
+    """
+    Mininet CLI mở rộng: các hàm campus (show_nat_table, apply_acl, …)
+    được đưa vào namespace của lệnh `py` để gọi trực tiếp.
+    """
+
+    _CAMPUS_FUNCS = {
+        'show_nat_table':        show_nat_table,
+        'apply_acl':             apply_acl,
+        'drop_acl':              drop_acl,
+        'apply_nat':             apply_nat,
+        'start_web_servers':     start_web_servers,
+        'run_connectivity_test': run_connectivity_test,
+        'start_load_balancer':   start_load_balancer,
+    }
+
+    def do_py(self, line):
+        """Evaluate a Python expression (campus helpers available)."""
+        ns = {'net': self.mn}
+        ns.update(self._CAMPUS_FUNCS)
+        try:
+            result = eval(line, ns)
+            if result is not None:
+                print(repr(result))
+        except SyntaxError:
+            # Fallback: try exec for statements
+            try:
+                exec(line, ns)  # noqa: S102
+            except Exception as exc:
+                print(f'Error: {exc}')
+                traceback.print_exc()
+        except Exception as exc:
+            print(f'Error: {exc}')
+            traceback.print_exc()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Hàm main
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run():
@@ -377,6 +519,9 @@ def run():
     if args.acl:
         apply_acl(net)
 
+    if args.lb:
+        start_load_balancer(net, demo=False)
+
     run_connectivity_test(net)
 
     info('\n')
@@ -384,15 +529,19 @@ def run():
     info('║          CAMPUS 3-LAYER NETWORK – MININET CLI               ║\n')
     info('╠══════════════════════════════════════════════════════════════╣\n')
     info('║  Lệnh hữu ích:                                              ║\n')
-    info('║   py apply_acl(net)   – Áp dụng ACL/Firewall               ║\n')
-    info('║   py drop_acl(net)    – Bãi bỏ ACL                         ║\n')
-    info('║   py show_nat_table(net) – Xem bảng NAT hiện tại           ║\n')
-    info('║   h1 ping web1        – Test ping Inside → DMZ             ║\n')
-    info('║   h_out curl 203.0.113.10 – Test Static NAT                ║\n')
-    info('║   h1 iperf3 -c web1 -t 10 – Test throughput               ║\n')
+    info('║   py apply_acl(net)            – Áp dụng ACL/Firewall      ║\n')
+    info('║   py drop_acl(net)             – Bãi bỏ ACL                ║\n')
+    info('║   py show_nat_table(net)       – Xem bảng NAT              ║\n')
+    info('║   py start_load_balancer(net)  – Khởi động LB (thực tế)    ║\n')
+    info('║   py start_load_balancer(net, demo=True) – LB demo mode    ║\n')
+    info('╠══════════════════════════════════════════════════════════════╣\n')
+    info('║  Test Load Balancer:                                        ║\n')
+    info('║   h_out iperf3 -c 203.0.113.10 -t 60 -b 95M &             ║\n')
+    info('║     → traffic qua r_out→dmz_r→web1 (đúng interface!)       ║\n')
+    info('║   h1 ping web1  /  h_out curl 203.0.113.10                 ║\n')
     info('╚══════════════════════════════════════════════════════════════╝\n')
 
-    CLI(net)
+    CampusCLI(net)
     net.stop()
 
 

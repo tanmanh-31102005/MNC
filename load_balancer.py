@@ -44,11 +44,12 @@ LB_PROCESS_PID = None            # PID node r_out trong Mininet (nsenter)
 
 # ─── Đối số dòng lệnh ────────────────────────────────────────────────────────
 ap = argparse.ArgumentParser(description='Load Balancer Monitor')
-ap.add_argument('--node',   default='r_out',    help='Tên Mininet node làm gateway NAT')
-ap.add_argument('--iface',  default='rout-eth2', help='Interface hướng Internet của node')
-ap.add_argument('--pid',    default='',         help='PID của node (để dùng nsenter)')
-ap.add_argument('--demo',   action='store_true', help='Chế độ demo: dùng random load thay vì đọc thực')
-ap.add_argument('--maxbw',  type=float, default=100.0, help='Băng thông tối đa ước tính (Mbps)')
+ap.add_argument('--node',      default='r_out',    help='Tên Mininet node làm gateway NAT')
+ap.add_argument('--iface',     default='rout-eth2', help='Interface hướng Internet của node')
+ap.add_argument('--pid',       default='',         help='PID của node cần monitor (nsenter)')
+ap.add_argument('--r_out_pid', default='',         help='PID của r_out (node chứa NAT rules)')
+ap.add_argument('--demo',      action='store_true', help='Chế độ demo: dùng random load thay vì đọc thực')
+ap.add_argument('--maxbw',     type=float, default=100.0, help='Băng thông tối đa ước tính (Mbps)')
 args = ap.parse_args()
 
 
@@ -59,21 +60,21 @@ args = ap.parse_args()
 _last_rx_bytes: dict = {}
 _last_time: dict     = {}
 
-def read_iface_bytes(pid: str, iface: str) -> int:
+def read_iface_bytes(pid: str, iface: str, rx: bool = True) -> int:
     """
-    Đọc tổng RX bytes của interface từ namespace của node Mininet.
-    Nếu pid='', đọc trực tiếp từ host (fallback).
+    Đọc tổng RX hoặc TX bytes của interface từ namespace của node Mininet.
+    rx=True → đọc rx_bytes, rx=False → đọc tx_bytes
     """
-    stat_path = f'/proc/{pid}/net/dev' if pid else '/proc/net/dev'
+    stat = 'rx_bytes' if rx else 'tx_bytes'
     try:
         if pid:
             out = subprocess.check_output(
-                ['nsenter', '-t', pid, '-n', '--', 'cat', f'/sys/class/net/{iface}/statistics/rx_bytes'],
+                ['nsenter', '-t', pid, '-n', '--', 'cat',
+                 f'/sys/class/net/{iface}/statistics/{stat}'],
                 stderr=subprocess.DEVNULL, text=True
             ).strip()
         else:
-            # Đọc trực tiếp (chạy bên ngoài Mininet)
-            path = f'/sys/class/net/{iface}/statistics/rx_bytes'
+            path = f'/sys/class/net/{iface}/statistics/{stat}'
             with open(path) as f:
                 out = f.read().strip()
         return int(out)
@@ -81,14 +82,15 @@ def read_iface_bytes(pid: str, iface: str) -> int:
         return -1
 
 
-def get_throughput_mbps(pid: str, iface: str) -> float:
+def get_throughput_mbps(pid: str, iface: str, rx: bool = True) -> float:
     """
     Tính throughput (Mbps) dựa trên delta bytes trong khoảng INTERVAL_SEC.
+    rx=True → đo inbound (RX), rx=False → đo outbound (TX).
     Trả về -1 nếu không đọc được.
     """
-    key = f'{pid}_{iface}'
+    key = f'{pid}_{iface}_{"rx" if rx else "tx"}'
     now = time.time()
-    cur_bytes = read_iface_bytes(pid, iface)
+    cur_bytes = read_iface_bytes(pid, iface, rx)
 
     if cur_bytes < 0:
         return -1.0
@@ -163,9 +165,11 @@ def _run_ns(pid: str, *cmd_parts):
         print(f'  [ERR] nsenter lỗi: {e}')
 
 
-def switch_to(target: str, pid: str = ''):
+def switch_to(target: str, pid: str = '', r_out_pid: str = ''):
     """
     Chuyển DNAT rule từ server hiện tại sang server mục tiêu.
+    - pid       : PID của node đang monitor (dmz_r) → chỉ để log
+    - r_out_pid : PID của r_out → nơi chứa iptables NAT rules
     target = 'WEB1' | 'WEB2'
     """
     global CURRENT_ACTIVE
@@ -173,19 +177,20 @@ def switch_to(target: str, pid: str = ''):
         return
 
     dest_ip = WEB1_IP if target == 'WEB1' else WEB2_IP
+    old_ip  = WEB1_IP if CURRENT_ACTIVE == 'WEB1' else WEB2_IP
     ts = datetime.now().strftime('%H:%M:%S')
     print(f'\n  ⚡ [{ts}] CHUYỂN ĐỔI: {CURRENT_ACTIVE} → {target}  (dest={dest_ip})')
 
-    # Xoá rule cũ PREROUTING
-    if pid:
-        _run_ns(pid,
+    # Dùng r_out_pid (namespace chứa NAT) để thay iptables rule
+    nat_pid = r_out_pid or pid  # ưu tiên r_out_pid
+    if nat_pid:
+        # Xóa rule cũ
+        _run_ns(nat_pid,
             'iptables', '-t', 'nat', '-D', 'PREROUTING',
             '-d', PUBLIC_VIP, '-p', 'tcp', '--dport', '80',
-            '-j', 'DNAT', '--to-destination',
-            f'{WEB1_IP if CURRENT_ACTIVE == "WEB1" else WEB2_IP}:80')
-
-        # Thêm rule mới
-        _run_ns(pid,
+            '-j', 'DNAT', '--to-destination', f'{old_ip}:80')
+        # Thêm rule mới ở đầu chain
+        _run_ns(nat_pid,
             'iptables', '-t', 'nat', '-I', 'PREROUTING', '1',
             '-d', PUBLIC_VIP, '-p', 'tcp', '--dport', '80',
             '-j', 'DNAT', '--to-destination', f'{dest_ip}:80')
@@ -194,8 +199,7 @@ def switch_to(target: str, pid: str = ''):
         _run_mn(args.node,
             'iptables', '-t', 'nat', '-D', 'PREROUTING',
             '-d', PUBLIC_VIP, '-p', 'tcp', '--dport', '80',
-            '-j', 'DNAT', '--to-destination',
-            f'{WEB1_IP if CURRENT_ACTIVE == "WEB1" else WEB2_IP}:80')
+            '-j', 'DNAT', '--to-destination', f'{old_ip}:80')
         _run_mn(args.node,
             'iptables', '-t', 'nat', '-I', 'PREROUTING', '1',
             '-d', PUBLIC_VIP, '-p', 'tcp', '--dport', '80',
@@ -211,7 +215,8 @@ def switch_to(target: str, pid: str = ''):
 def monitor_loop():
     global CURRENT_ACTIVE
 
-    pid = args.pid
+    pid      = args.pid        # PID node monitor (dmz_r)
+    rout_pid = args.r_out_pid  # PID node NAT (r_out)
 
     print('╔══════════════════════════════════════════════════════════════════╗')
     print('║  LOAD BALANCER MONITOR – Campus 3-Layer Network                  ║')
@@ -241,11 +246,14 @@ def monitor_loop():
                 web1_mbps = web1_load * args.maxbw / 100
                 web2_mbps = web2_load * args.maxbw / 100
             else:
-                web1_mbps = get_throughput_mbps(pid, args.iface)
-                # web2 đo trên cùng interface (giả lập từ log)
-                web2_mbps = max(0, args.maxbw - web1_mbps) if web1_mbps >= 0 else 0.0
+                # Đo RX (inbound vào dmz-eth2 = traffic tới web1+web2)
+                web1_mbps = get_throughput_mbps(pid, args.iface, rx=True)
+                # TX (outbound dmz-eth2 = reply từ web servers)
+                web2_mbps = get_throughput_mbps(pid, args.iface, rx=False)
                 if web1_mbps < 0:
                     web1_mbps = 0.0
+                if web2_mbps < 0:
+                    web2_mbps = 0.0
 
             # Tính % tải theo maxbw
             load_pct = (web1_mbps / args.maxbw * 100) if args.maxbw > 0 else 0
@@ -253,11 +261,11 @@ def monitor_loop():
             # ── Quyết định chuyển đổi ────────────────────────────────────
             action = 'HOLD'
             if load_pct > THRESHOLD_HIGH and CURRENT_ACTIVE == 'WEB1':
-                switch_to('WEB2', pid)
+                switch_to('WEB2', pid, rout_pid)
                 action = f'SWITCH→WEB2 (load={load_pct:.0f}%>{THRESHOLD_HIGH}%)'
                 total_switches += 1
             elif load_pct < THRESHOLD_LOW and CURRENT_ACTIVE == 'WEB2':
-                switch_to('WEB1', pid)
+                switch_to('WEB1', pid, rout_pid)
                 action = f'SWITCH→WEB1 (load={load_pct:.0f}%<{THRESHOLD_LOW}%)'
                 total_switches += 1
 
